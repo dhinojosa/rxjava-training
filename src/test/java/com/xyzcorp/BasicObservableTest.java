@@ -5,6 +5,7 @@ import io.reactivex.disposables.Disposable;
 
 import io.reactivex.functions.Action;
 import io.reactivex.functions.BiFunction;
+import io.reactivex.observables.GroupedObservable;
 import io.reactivex.schedulers.Schedulers;
 
 import org.junit.Test;
@@ -211,11 +212,12 @@ public class BasicObservableTest {
 
         System.out.println("rawData");
         Observable<String> rawData = stockSymbols
-                .flatMap(ss -> getDataFor(ss).skip(1).take(1)).cache();
+                .flatMap(ss -> getDataFor(ss).skip(1).take(1).map(s -> s.split(",")[1])).cache();
 
         System.out.println("zip");
         Observable<Tuple<String, String>> tupleObservable =
                 stockSymbols.zipWith(rawData, (s, s2) -> new Tuple<>(s, s2));
+
 
 
         Disposable disposable = tupleObservable.doOnNext(s -> log(s.toString()))
@@ -251,5 +253,35 @@ public class BasicObservableTest {
          map1.subscribe(System.out::println);
     }
 
+
+
+    @Test
+    public void testRealLifeFlatMapWithReduce() throws Exception {
+        System.out.println("stockSymbols");
+        Observable<String> stockSymbols = Observable.just("GOOG", "M",
+                "AAPL", "MAC", "ORCL");
+
+        System.out.println("rawData");
+        Observable<Double> doubleObservable = stockSymbols
+                .flatMap(ss -> getDataFor(ss).skip(1).map(s -> s.split(",")[4]).map(Double::parseDouble));
+
+        Single<Long> count = doubleObservable.count();
+        Maybe<Double> total = doubleObservable.reduce((aDouble, aDouble2) -> aDouble + aDouble2);
+
+
+        Single<Double> single = total.defaultIfEmpty(0.0).toSingle().flatMap(t -> count.map(c -> t / c));
+
+        Observable<Tuple<String, Double>> tupleObservable =
+                stockSymbols.zipWith(single.toObservable(), (ss, avg) -> new Tuple<>(ss, avg));
+
+        tupleObservable.subscribe(System.out::println);
+
+//        System.out.println("zip");
+//        Observable<Tuple<String, String>> tupleObservable =
+//                stockSymbols.zipWith(rawData, (s, s2) -> new Tuple<>(s, s2));
+
+
+
+    }
 
 }
