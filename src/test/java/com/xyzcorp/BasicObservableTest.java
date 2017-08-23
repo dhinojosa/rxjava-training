@@ -190,12 +190,17 @@ public class BasicObservableTest {
         InputStreamReader reader = new InputStreamReader(inputStream);
         BufferedReader bufferedReader = new BufferedReader(reader);
         return Observable.create(e -> {
+
             bufferedReader.lines().forEach(value -> {
                 e.onNext(value);
-              //  System.out.println("Got a line" + value);
+                //  System.out.println("Got a line" + value);
             });
             e.onComplete();
         });
+    }
+
+    public void log(String stmt) {
+
     }
 
     @Test
@@ -206,25 +211,44 @@ public class BasicObservableTest {
 
         System.out.println("rawData");
         Observable<String> rawData = stockSymbols
-                .flatMap(ss -> getDataFor(ss).skip(1).take(1));
+                .flatMap(ss -> getDataFor(ss).skip(1).take(1)).cache();
 
         System.out.println("zip");
         Observable<Tuple<String, String>> tupleObservable =
                 stockSymbols.zipWith(rawData, (s, s2) -> new Tuple<>(s, s2));
 
-        tupleObservable.doOnNext(t -> System.out.format("We are process tuple: %s", t))
+
+        Disposable disposable = tupleObservable.doOnNext(s -> log(s.toString()))
+                                         .subscribe(System.out::println,
+                                                 Throwable::printStackTrace,
+                                                 () -> System.out.println("Done"));
+
+
+        disposable.dispose();
+
+        System.out.println("-----------");
+
+        tupleObservable.doOnNext(t -> System.out.format("We are process tuple 2: %s\n", t))
                        .subscribe(System.out::println,
-                Throwable::printStackTrace,
-                () -> System.out.println("Done"));
-
-        Thread.sleep(15000);
-
-//
-//        Observable<Tuple<String, String>> map1 = stockSymbols
-//                .map(ss -> new Tuple<>(ss, getDataFor(ss)))
-//                .map(to -> new Tuple<>(to.getFirst(), to.getSecond().skip(1).take(1).blockingSingle()));
+                               Throwable::printStackTrace,
+                               () -> System.out.println("Done"));
 
 
+        System.out.println("-----------");
+
+        tupleObservable.doOnNext(t -> System.out.format("We are process tuple 3: %s\n", t))
+                       .subscribe(System.out::println,
+                               Throwable::printStackTrace,
+                               () -> System.out.println("Done"));
+
+//        Thread.sleep(15000);
+
+
+        Observable<Tuple<String, String>> map1 = stockSymbols
+                .map(ss -> new Tuple<>(ss, getDataFor(ss)))
+                .map(to -> new Tuple<>(to.getFirst(), to.getSecond().skip(1).take(1).blockingSingle()));
+
+         map1.subscribe(System.out::println);
     }
 
 
