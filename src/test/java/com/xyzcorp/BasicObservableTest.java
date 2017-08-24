@@ -3,9 +3,7 @@ package com.xyzcorp;
 import io.reactivex.*;
 import io.reactivex.disposables.Disposable;
 
-import io.reactivex.functions.Action;
-import io.reactivex.functions.BiFunction;
-import io.reactivex.observables.GroupedObservable;
+import io.reactivex.functions.Function;
 import io.reactivex.schedulers.Schedulers;
 
 import org.junit.Test;
@@ -13,10 +11,8 @@ import org.junit.Test;
 import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.net.MalformedURLException;
 import java.net.URL;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.*;
@@ -284,4 +280,58 @@ public class BasicObservableTest {
 
     }
 
+
+    @Test
+    public void testMaterialize() {
+        Observable<Integer> observable = Observable.<Integer>create(s -> {
+            System.out.println("Inside Observable" + Thread.currentThread().getName());
+            s.onNext(50);
+            // s.onError(new Throwable("Oops"));
+            s.onNext(150);
+            s.onComplete();
+        });
+
+        observable.materialize().filter(integerNotification ->
+                integerNotification.isOnNext() || integerNotification.isOnComplete())
+                  .dematerialize().subscribe(System.out::println);
+
+    }
+
+    @Test
+    public void testException() throws Exception {
+        Observable<Observable<Integer>> observableObservable = Observable.<Observable<Integer>>create(s -> {
+            System.out.println("Inside Observable" + Thread.currentThread().getName());
+            s.onNext(Observable.just(50));
+            s.onNext(Observable.error(new Throwable("Oops")));
+            Thread.sleep(2000);
+            s.onNext(Observable.just(150));
+            s.onComplete();
+        });
+
+
+
+        System.out.println("Before");
+        observableObservable.subscribe(o ->
+                o.subscribe(s -> System.out.printf("Success! %s\n", s),
+                            e -> System.out.println("Caught inner error"),
+                            () -> System.out.println("Inner Done")),
+                   e -> System.out.println("Caught outer error"),
+                   () -> System.out.println("Outer done"));
+
+
+//        observableObservable
+//                .flatMap(integerObservable -> integerObservable)
+//                .subscribe(System.out::println, Throwable::printStackTrace);
+
+
+//        observable.retry(4).subscribe(System.out::println, e -> {
+//            System.out.println("Captured Error in Subscribe");
+//            e.printStackTrace();
+//        });
+
+
+        Thread.sleep(10000);
+
+
+    }
 }
