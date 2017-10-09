@@ -3,13 +3,14 @@ package com.macys.rx;
 import io.reactivex.*;
 import io.reactivex.disposables.Disposable;
 
-import io.reactivex.functions.Action;
-import io.reactivex.functions.Consumer;
-import io.reactivex.functions.Function;
+import io.reactivex.functions.*;
 import org.junit.Test;
 
 import java.time.LocalDateTime;
 import java.util.concurrent.Callable;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class BasicObservableTest {
     @Test
@@ -171,15 +172,139 @@ public class BasicObservableTest {
                 Observable.just(LocalDateTime.now());
         observable.subscribe(System.out::println);
         Thread.sleep(2000);
-        observable.subscribe(System.out::println);
+        System.out.println("-----");
+        observable.subscribe(x -> System.out.println("On Next:" + x),
+                Throwable::printStackTrace,
+                () -> System.out.println("Done"));
+
+        Thread.sleep(10000);
     }
+
     @Test
     public void testDefer() throws InterruptedException {
         Observable<LocalDateTime> observable =
                 Observable
-                        .defer(() -> Observable.just(LocalDateTime.now()));
+                        .defer(() -> {
+                            System.out.println("We are being invoked again!");
+                            return Observable.just(LocalDateTime.now());
+                        });
         observable.subscribe(System.out::println);
         Thread.sleep(2000);
+        System.out.println("-----");
+        observable.repeat(10).subscribe(x -> System.out.println("On Next:" + x),
+                Throwable::printStackTrace,
+                () -> System.out.println("Done"));
+    }
+
+    @Test
+    public void testInterval() throws Exception {
+        Observable.interval(1, TimeUnit.SECONDS)
+                  .doOnNext(n -> System.out.println(Thread.currentThread().getName()))
+                  .subscribe(System.out::println);
+        Thread.sleep(10000);
+    }
+
+
+    @Test
+    public void testIntervalRange() throws Exception {
+        Observable.intervalRange(10, 20, 1, 2, TimeUnit.SECONDS)
+                  .doOnNext(n -> System.out.println(Thread.currentThread().getName()))
+                  .subscribe(System.out::println);
+        Thread.sleep(20000);
+    }
+
+    @Test
+    public void testRange() throws Exception {
+        Observable.range(10, 20).subscribe(System.out::println);
+    }
+
+    @Test
+    public void testManualCreationWithRepeatAndNoComplete() throws Exception {
+        Observable.<Integer>create(s ->
+        {
+            s.onNext(1);
+            s.onNext(2);
+            s.onNext(3);
+        })
+                .map(x -> x + 1)
+                .repeat(3)
+                .subscribe(System.out::println,
+                        Throwable::printStackTrace, () -> System.out.println("Done"));
+        Thread.sleep(30000);
+    }
+
+    //DO NOT DO THIS!!!!
+    @Test
+    public void testViolationOfContractDoNotDoThisISwearDoNotThis() throws Exception {
+        Observable.<Integer>create(new ObservableOnSubscribe<Integer>() {
+            @Override
+            public void subscribe(ObservableEmitter<Integer> e) throws Exception {
+                Thread t = new Thread() {
+                    @Override
+                    public void run() {
+                        e.onNext(1);
+                        e.onNext(2);
+                    }
+                };
+
+                t.start();
+                Thread t2 = new Thread() {
+                    @Override
+                    public void run() {
+                        e.onNext(3);
+                        e.onNext(4);
+                    }
+                };
+                t2.start();
+            }
+        });
+    }
+    //DO NOT DO THIS!!!!
+
+    @Test
+    public void testClosureWithFilter() throws Exception {
+        final int adult = 18;
+        Observable
+                .just(18, 4, 10, 22,
+                        33, 50, 66)
+                .filter(x -> x >= adult).subscribe(System.out::println);
+    }
+
+    @Test
+    public void testFlatMap() throws Exception {
+        Observable<Integer> observable =
+                Observable.just(1, 2, 3, 4)
+                          .flatMap(i -> Observable.just(-i, i, i + 1));
+
         observable.subscribe(System.out::println);
     }
+
+    @Test
+    public void testJava8StreamWithFlatMap() throws Exception {
+        Stream.of(1,2,3,4).flatMap(x -> Stream.of(-x, x, x+1))
+              .collect(Collectors.toList());
+    }
+
+    @Test
+    public void testZip() throws Exception {
+        Observable<Integer> range = Observable.range(1, 10);
+        Observable<Character> characterObservable = Observable
+                .range(97, 26).map(i -> (char) i.intValue());
+        Observable<String> stringObservable = range.zipWith(characterObservable,
+                (integer, character) -> "(" + integer + "," + character + ")");
+        stringObservable.subscribe(System.out::println);
+    }
+
+
+    @Test
+    public void testZipWithEmptyObservable() throws Exception {
+        Observable<Integer> range = Observable.range(1, 10);
+        Observable<Character> characterObservable = Observable.empty();
+        Observable<String> stringObservable = range.zipWith(characterObservable,
+                (integer, character) -> "(" + integer + "," + character + ")");
+        stringObservable.subscribe(System.out::println,
+                Throwable::printStackTrace,
+                () -> System.out.println("Done"));
+    }
+
 }
