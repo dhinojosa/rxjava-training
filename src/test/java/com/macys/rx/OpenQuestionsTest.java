@@ -27,7 +27,6 @@ public class OpenQuestionsTest {
         @Override
         public void onError(Throwable t) {
             t.printStackTrace();
-
         }
 
         @Override
@@ -38,10 +37,10 @@ public class OpenQuestionsTest {
 
     @Test
     public void testFromCallable() throws InterruptedException {
-        Flowable<LocalDateTime> localDateTimeObservable = Flowable
+        Flowable<LocalDateTime> localDateTimeFlowable = Flowable
                 .fromCallable(LocalDateTime::now).repeat(100);
 
-        localDateTimeObservable.parallel(3).runOn(Schedulers.io()).map(x -> {
+        localDateTimeFlowable.parallel(3).runOn(Schedulers.io()).map(x -> {
             System.out.println(Thread.currentThread().getName());
             Thread.sleep(500);
             return x;

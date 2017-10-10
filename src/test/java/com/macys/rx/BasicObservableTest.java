@@ -2,12 +2,15 @@ package com.macys.rx;
 
 import io.reactivex.*;
 import io.reactivex.disposables.Disposable;
-import io.reactivex.schedulers.Schedulers;
+import io.reactivex.functions.BiConsumer;
+import io.reactivex.functions.BiFunction;
 import org.junit.Test;
-import org.reactivestreams.Subscriber;
-import org.reactivestreams.Subscription;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -281,22 +284,37 @@ public class BasicObservableTest {
 
     @Test
     public void testJava8StreamWithFlatMap() throws Exception {
-        Stream.of(1,2,3,4).flatMap(x -> Stream.of(-x, x, x+1))
+        Stream.of(1, 2, 3, 4).flatMap(x -> Stream.of(-x, x, x + 1))
               .collect(Collectors.toList());
     }
 
 
     @Test
     public void testZip() throws Exception {
-
-        Observable<Integer> range = Observable.range(1, 10);
+        Observable<Integer> rangeObservable = Observable.range(1, 10);
         Observable<Character> characterObservable = Observable
                 .range(97, 26).map(i -> (char) i.intValue());
-        Observable<String> stringObservable = range.zipWith(characterObservable,
-                (integer, character) -> "(" + integer + "," + character + ")");
-        stringObservable.subscribe(System.out::println);
+
+        Observable<String> stringObservable1 =
+                Observable.zip(rangeObservable, characterObservable,
+                        (integer, character) -> "(" + integer + "," + character + ")");
+
+
+        Observable<String> stringObservable2 =
+                rangeObservable.zipWith(characterObservable,
+                        (integer, character) -> "(" + integer + "," + character + ")");
+
+        stringObservable2.subscribe(System.out::println);
     }
 
+    @Test
+    public void testZipWithTuple2() throws Exception {
+        Observable<Integer> rangeObservable = Observable.range(1, 10);
+        Observable<Character> characterObservable = Observable
+                .range(97, 26).map(i -> (char) i.intValue());
+        Observable<Tuple2<Integer, Character>> zip = Observable.zip(rangeObservable, characterObservable, Tuple2::new);
+        zip.subscribe(System.out::println);
+    }
 
     @Test
     public void testZipWithEmptyObservable() throws Exception {
@@ -309,4 +327,102 @@ public class BasicObservableTest {
                 () -> System.out.println("Done"));
     }
 
+
+    @Test
+    public void testOptional() {
+        Optional<String> kumar = Optional.of("Kumar");
+        String result = kumar.orElse("Nothing");
+        System.out.println(result);
+    }
+
+    @Test
+    public void testReduce() {
+        Maybe<Integer> integerMaybe = Observable.range(1, 10).reduce(
+                (total, next) -> {
+                    System.out.println("total: " + total + "; next " + next);
+                    return total + next;
+                });
+
+        integerMaybe.subscribe(System.out::println, Throwable::printStackTrace,
+                () -> System.out.println("Done"));
+
+        integerMaybe.subscribe(new MaybeObserver<Integer>() {
+            @Override
+            public void onSubscribe(Disposable d) {
+
+            }
+
+            @Override
+            public void onSuccess(Integer integer) {
+                System.out.println(integer);
+            }
+
+            @Override
+            public void onError(Throwable e) {
+                e.printStackTrace();
+            }
+
+            @Override
+            public void onComplete() {
+                System.out.println("Done");
+            }
+        });
+    }
+
+    @Test
+    public void testFunctionalFactorial() {
+        int end = 5;
+        Single<Integer> observable =
+                Observable.range(1, end)
+                          .reduce(1, (total, next) -> total * next);
+        observable.subscribe(System.out::println);
+    }
+
+    @Test
+    public void testUsingCollectionAsReturnForReduce() {
+        int end = 5;
+        Single<ArrayList<Integer>> arrayListSingle =
+                Observable.range(1, end)
+                          .reduce(new ArrayList<>(), (integers, integer) -> {
+                              integers.add(integer);
+                              return integers;
+                          });
+        arrayListSingle.subscribe(System.out::println);
+    }
+
+    @Test
+    public void testCollect() {
+        Single<List<String>> single = Observable.range(1, 20)
+                                                .collect(ArrayList::new,
+                                                        (strings, integer) -> strings.add("Hello!" + integer));
+
+        single.subscribe(System.out::println);
+    }
+
+    @Test
+    public void testCollectWithDefaultElements() {
+        Single<List<String>> single = Observable.range(1, 20)
+                                                .collect(() -> {
+                                                            ArrayList<String> list = new ArrayList<>();
+                                                            list.add("Foo");
+                                                            list.add("Bar");
+                                                            return list;
+                                                        },
+                                                        (strings, integer) -> strings.add("Hello!" + integer));
+
+        single.subscribe(System.out::println);
+    }
+
+
+    @Test
+    public void testCollectWithDefaultElementsWithConcat() {
+        Observable<String> stringObservable = Observable.concat(
+                Observable.just("Foo", "Bar"),
+                Observable.range(1, 20).map(i -> "Hello!" + i));
+
+        Single<ArrayList<String>> single = stringObservable.collect(ArrayList::new, ArrayList::add);
+        Single<List<String>> listSingle = stringObservable.toList();
+
+        single.subscribe(System.out::println);
+    }
 }
