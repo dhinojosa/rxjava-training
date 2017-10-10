@@ -5,6 +5,7 @@ import io.reactivex.Observable;
 import io.reactivex.ObservableSource;
 import io.reactivex.functions.BiFunction;
 import io.reactivex.functions.Function;
+import io.reactivex.parallel.ParallelFlowable;
 import io.reactivex.schedulers.Schedulers;
 import org.junit.Test;
 
@@ -51,7 +52,7 @@ public class StockFinderTest {
 
 
     private String getInfoFromURL(String s) throws IOException {
-        System.out.println("That we are running Thread" + Thread.currentThread().getName());
+        System.out.println("getInfoFromURL: " + Thread.currentThread().getName());
         URL url = new URL(s);
         url.openConnection();
         InputStream inputStream = url.openStream();
@@ -64,8 +65,12 @@ public class StockFinderTest {
     public void testStockPriceScheduler() throws IOException, InterruptedException {
         Observable<String> stockNames = Observable.just("M", "MSFT", "T", "ORCL");
         Observable<String> urls = stockNames.map(s -> "https://finance.google.com/finance/historical?output=csv&q=" + s);
-        urls.observeOn(Schedulers.from(executorService)).map(this::getInfoFromURL).flatMap(doc ->
-                Observable.fromArray(doc.split("\n")).skip(1).take(1)).subscribe(System.out::println);
+        urls.doOnNext(x -> System.out.println("doOnNext-1: " + Thread.currentThread().getName()))
+            .subscribeOn(Schedulers.from(executorService))
+            .map(this::getInfoFromURL)
+            .observeOn(Schedulers.computation())
+            .doOnNext(x -> System.out.println("doOnNext-2: " + Thread.currentThread().getName()))
+            .flatMap(doc -> Observable.fromArray(doc.split("\n")).skip(1).take(1)).subscribe(System.out::println);
         Thread.sleep(10000);
     }
 
@@ -77,13 +82,5 @@ public class StockFinderTest {
         urls.parallel(4).runOn(Schedulers.from(executorService)).map(this::getInfoFromURL).flatMap(doc ->
                 Flowable.fromArray(doc.split("\n")).skip(1).take(1)).sequential().subscribe(System.out::println);
         Thread.sleep(10000);
-    }
-
-
-
-    @Test
-    public void testHowToMakeEverythingLineUp() throws Exception {
-
-
     }
 }
