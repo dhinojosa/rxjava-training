@@ -1,7 +1,11 @@
 package com.macys.rx;
 
+import io.reactivex.Flowable;
 import io.reactivex.Observable;
+import io.reactivex.ObservableSource;
 import io.reactivex.functions.BiFunction;
+import io.reactivex.functions.Function;
+import io.reactivex.schedulers.Schedulers;
 import org.junit.Test;
 
 import java.io.BufferedReader;
@@ -27,12 +31,7 @@ public class StockFinderTest {
         Callable<String> c = new Callable<String>() {
             @Override
             public String call() throws Exception {
-                URL url = new URL(urlString);
-                url.openConnection();
-                InputStream inputStream = url.openStream();
-                InputStreamReader inputStreamReader = new InputStreamReader(inputStream);
-                BufferedReader bufferedReader = new BufferedReader(inputStreamReader);
-                return bufferedReader.lines().collect(Collectors.joining("\n"));
+                return getInfoFromURL(urlString);
             }
         };
         return executorService.submit(c);
@@ -40,13 +39,51 @@ public class StockFinderTest {
 
 
     @Test
-    public void testStockPriceFinderFindTheLatestClose() throws IOException {
-        Observable<String> stockPrices = Observable.just("M", "MSFT", "T", "ORCL");
-        Observable<String> urls = stockPrices.map(s -> "https://finance.google.com/finance/historical?output=csv&q=" + s);
-        Observable<String> contentObservable = urls.flatMap(u -> Observable.fromFuture(createFuture(u)));
-        Observable<String> lineObservable = contentObservable.flatMap(doc ->
+    public void testStockPriceFinderFindTheLatestCloseBug() throws IOException {
+        Observable<String> stockNames = Observable.just("M", "MSFT", "BTC", "T", "ORCL");
+        Observable<String> urls = stockNames.map(s -> "https://finance.google.com/finance/historical?output=csv&q=" + s);
+        Observable<String> contentObservable = urls.flatMap(u -> Observable.fromFuture(createFuture(u)).onErrorResumeNext((Throwable e) -> Observable.empty()));
+        Observable<String> lineObservable = contentObservable.doOnNext(s -> System.out.println(">>>>" + s)).flatMap(doc ->
                 Observable.fromArray(doc.split("\n")).skip(1).take(1));
-        Observable<Double> latestStockValues = lineObservable.map(s -> s.split(",")[4]).map(Double::parseDouble);
-        stockPrices.zipWith(latestStockValues, Tuple2::new).subscribe(System.out::println);
+        Observable<Tuple2<String, Double>> tupleObservable = stockNames.zipWith(lineObservable.map(s -> s.split(",")[4]).map(Double::parseDouble), Tuple2::new);
+        tupleObservable.subscribe(System.out::println);
+    }
+
+
+    private String getInfoFromURL(String s) throws IOException {
+        System.out.println("That we are running Thread" + Thread.currentThread().getName());
+        URL url = new URL(s);
+        url.openConnection();
+        InputStream inputStream = url.openStream();
+        InputStreamReader inputStreamReader = new InputStreamReader(inputStream);
+        BufferedReader bufferedReader = new BufferedReader(inputStreamReader);
+        return bufferedReader.lines().collect(Collectors.joining("\n"));
+    }
+
+    @Test
+    public void testStockPriceScheduler() throws IOException, InterruptedException {
+        Observable<String> stockNames = Observable.just("M", "MSFT", "T", "ORCL");
+        Observable<String> urls = stockNames.map(s -> "https://finance.google.com/finance/historical?output=csv&q=" + s);
+        urls.observeOn(Schedulers.from(executorService)).map(this::getInfoFromURL).flatMap(doc ->
+                Observable.fromArray(doc.split("\n")).skip(1).take(1)).subscribe(System.out::println);
+        Thread.sleep(10000);
+    }
+
+
+    @Test
+    public void testStockPriceSchedulerWithFlowable() throws IOException, InterruptedException {
+        Flowable<String> stockNames = Flowable.just("M", "MSFT", "T", "ORCL");
+        Flowable<String> urls = stockNames.map(s -> "https://finance.google.com/finance/historical?output=csv&q=" + s);
+        urls.parallel(4).runOn(Schedulers.from(executorService)).map(this::getInfoFromURL).flatMap(doc ->
+                Flowable.fromArray(doc.split("\n")).skip(1).take(1)).sequential().subscribe(System.out::println);
+        Thread.sleep(10000);
+    }
+
+
+
+    @Test
+    public void testHowToMakeEverythingLineUp() throws Exception {
+
+
     }
 }

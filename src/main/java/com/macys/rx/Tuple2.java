@@ -4,8 +4,8 @@ import java.util.Objects;
 
 public class Tuple2<T, U> {
 
-    private T _1;
-    private U _2;
+    private final T _1;
+    private final U _2;
 
     public Tuple2(T _1, U _2) {
         this._1 = _1;
