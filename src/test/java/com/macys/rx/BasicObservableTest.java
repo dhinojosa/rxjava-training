@@ -577,7 +577,18 @@ public class BasicObservableTest {
     }
 
 
+    @Test
+    public void testMaterializerDematerializer() throws Exception {
+        Observable.range(1, 50)
+                  .map(x -> {
+                      if (x == 50) throw new RuntimeException("No");
+                      return x;
+                  }).materialize()
+                  .filter(Notification::isOnNext)
+                  .dematerialize()
+                  .subscribe(System.out::println);
 
+    }
 }
 
 

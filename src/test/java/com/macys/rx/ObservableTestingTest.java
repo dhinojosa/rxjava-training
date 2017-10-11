@@ -3,6 +3,7 @@ package com.macys.rx;
 import io.reactivex.Flowable;
 import io.reactivex.Observable;
 import io.reactivex.Observer;
+import io.reactivex.disposables.Disposable;
 import io.reactivex.observers.TestObserver;
 import io.reactivex.schedulers.Schedulers;
 import io.reactivex.schedulers.TestScheduler;
@@ -125,14 +126,10 @@ public class ObservableTestingTest {
 
 
         Observable<Tuple2<String, Double>> tuple2Observable = processStock(Arrays.asList("M", "ATT"), s -> fakeData);
-
-        tuple2Observable.subscribe(x -> System.out.println("sub: " + x));
-
         TestObserver<Tuple2<String, Double>> testObserver = new TestObserver<>();
-
         tuple2Observable.subscribe(testObserver);
 
-        Thread.sleep(1000);
+        Thread.sleep(1000);   //I needed this line
         testObserver.assertNoErrors();
         testObserver.assertValueCount(2);
         testObserver.assertValueSequence(Arrays.asList(new Tuple2<>("M", 1110.0), new Tuple2<>("ATT", 1110.0)));
@@ -169,4 +166,39 @@ public class ObservableTestingTest {
         testObserver.assertValues(new Tuple2<>("M", 20.66), new Tuple2<>("ATT", 1110.0));
     }
 
+    @Test
+    public void testBlocking() throws Exception {
+        Long aLong = Observable.interval(50, TimeUnit.MILLISECONDS).take(100).blockingLast();
+        System.out.println(aLong);
+    }
+
+
+    @Test
+    public void testSafeSubscribe() throws Exception {
+        Observable.interval(50, TimeUnit.MILLISECONDS).take(100).safeSubscribe(
+                new Observer<Long>() {
+                    @Override
+                    public void onSubscribe(Disposable d) {
+
+                    }
+
+                    @Override
+                    public void onNext(Long aLong) {
+                         if (aLong == 50) throw new RuntimeException("Yahaaa!");
+                         System.out.println(aLong);
+                    }
+
+                    @Override
+                    public void onError(Throwable e) {
+
+                    }
+
+                    @Override
+                    public void onComplete() {
+
+                    }
+                });
+
+        Thread.sleep(5000);
+    }
 }

@@ -1,9 +1,6 @@
 package com.macys.rx;
 
-import io.reactivex.Flowable;
-import io.reactivex.MaybeObserver;
-import io.reactivex.Observable;
-import io.reactivex.ObservableSource;
+import io.reactivex.*;
 import io.reactivex.functions.BiFunction;
 import io.reactivex.functions.Function;
 import io.reactivex.parallel.ParallelFlowable;
@@ -17,11 +14,9 @@ import java.io.InputStreamReader;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.Buffer;
+import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
+import java.util.concurrent.*;
 import java.util.stream.Collectors;
 
 public class StockFinderTest {
@@ -85,6 +80,25 @@ public class StockFinderTest {
     }
 
 
+    @Test
+    public void testInvokeAServerEveryMinute() throws InterruptedException {
+        Observable<String> stockNames = Observable.just("M", "MSFT", "T", "ORCL");
+        Observable<String> urls = stockNames.map(s -> "https://finance.google.com/finance/historical?output=csv&q=" + s);
+
+        Observable<String> observable = Observable.interval(15, TimeUnit.SECONDS)
+                                                  .flatMap(x -> urls
+                                                          .subscribeOn(Schedulers.from(executorService))
+                                                          .map(this::getInfoFromURL)
+                                                          .observeOn(Schedulers.computation())
+                                                          .flatMap(doc ->
+                                                                  Observable.fromArray(doc.split("\n"))
+                                                                            .skip(1)
+                                                                            .take(1)));
+
+        observable.subscribe(System.out::println);
+
+        Thread.sleep(1000 * 60 * 3);
+    }
 
     @Test
     public void testStockPriceSchedulerWithErrorHandling() throws IOException, InterruptedException {
@@ -106,7 +120,7 @@ public class StockFinderTest {
 
         Observable.zip(stockNames, optionalObservable, (name, price) ->
                 new Tuple2<>(name, Double.parseDouble(price.orElse("0.0"))))
-                .subscribe(System.out::println, Throwable::printStackTrace);
+                  .subscribe(System.out::println, Throwable::printStackTrace);
         Thread.sleep(10000);
     }
 
