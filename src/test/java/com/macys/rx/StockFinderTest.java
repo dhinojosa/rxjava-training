@@ -85,6 +85,7 @@ public class StockFinderTest {
     }
 
 
+
     @Test
     public void testStockPriceSchedulerWithErrorHandling() throws IOException, InterruptedException {
         Observable<String> stockNames = Observable.just("M", "MSFT", "BTC", "T", "ORCL");

@@ -6,6 +6,7 @@ import io.reactivex.functions.Action;
 import io.reactivex.functions.BiConsumer;
 import io.reactivex.functions.BiFunction;
 import io.reactivex.schedulers.Schedulers;
+import org.assertj.core.util.Lists;
 import org.junit.Test;
 
 import java.time.LocalDateTime;
@@ -510,12 +511,78 @@ public class BasicObservableTest {
 
     @Test
     public void testMerge() throws Exception {
-        Flowable<String> integerFlowable1 = Flowable.interval(5, TimeUnit.MILLISECONDS).map(x -> "F1:" + x);
-        Flowable<String> integerFlowable2 = Flowable.interval(500, TimeUnit.MILLISECONDS).map(x -> "F2:" + x);
-        Flowable<String> integerFlowable3 = Flowable.interval(1, TimeUnit.SECONDS).map(x -> "F3:" + x);;
+        Flowable<String> integerFlowable1 = Flowable.interval(5, TimeUnit.MILLISECONDS).map(x -> "F1:" + x).take(50).subscribeOn(Schedulers.computation());
+        Flowable<String> integerFlowable2 = Flowable.interval(500, TimeUnit.MILLISECONDS).map(x -> "F2:" + x).take(50).subscribeOn(Schedulers.computation());
+        Flowable<String> integerFlowable3 = Flowable.interval(1, TimeUnit.SECONDS).map(x -> "F3:" + x).take(50).subscribeOn(Schedulers.computation());
 
         Flowable.merge(integerFlowable1, integerFlowable2, integerFlowable3).subscribe(System.out::println);
 
         Thread.sleep(50000);
     }
+
+    @Test
+    public void testConcat() throws Exception {
+        Flowable<String> integerFlowable1 = Flowable.interval(5, TimeUnit.MILLISECONDS)
+                                                    .take(50)
+                                                    .map(x -> "F1:" + x)
+                                                    .subscribeOn(Schedulers.computation());
+        Flowable<String> integerFlowable2 = Flowable.interval(500, TimeUnit.MILLISECONDS)
+                                                    .take(50)
+                                                    .map(x -> "F2:" + x)
+                                                    .subscribeOn(Schedulers.computation());
+        Flowable<String> integerFlowable3 = Flowable.interval(1, TimeUnit.SECONDS)
+                                                    .take(50)
+                                                    .map(x -> "F3:" + x)
+                                                    .subscribeOn(Schedulers.computation());
+
+        Flowable.concat(integerFlowable1, integerFlowable2, integerFlowable3).subscribe(System.out::println);
+
+        Thread.sleep(50000);
+    }
+
+    @Test
+    public void testAmb() throws Exception {
+        Flowable<String> integerFlowable1 = Flowable.interval(5, TimeUnit.MILLISECONDS)
+                                                    .take(50)
+                                                    .map(x -> "F1:" + x)
+                                                    .delay(2, TimeUnit.SECONDS)
+                                                    .subscribeOn(Schedulers.computation());
+        Flowable<String> integerFlowable2 = Flowable.interval(500, TimeUnit.MILLISECONDS)
+                                                    .take(50)
+                                                    .map(x -> "F2:" + x)
+                                                    .delay(1, TimeUnit.SECONDS)
+                                                    .subscribeOn(Schedulers.computation());
+        Flowable<String> integerFlowable3 = Flowable
+                .interval(1, TimeUnit.SECONDS)
+                .take(50).map(x -> "F3:" + x)
+                .delay(3, TimeUnit.SECONDS)
+                .subscribeOn(Schedulers.computation());
+
+        Flowable.amb(Lists.newArrayList(integerFlowable1, integerFlowable2, integerFlowable3)).subscribe(System.out::println);
+
+        Thread.sleep(50000);
+    }
+
+
+    @Test
+    public void testWritingOurOwnFlowable() throws Exception {
+//        Flowable<Long> flowable = Flowable.create(new FlowableOnSubscribe<Long>() {
+//            @Override
+//            public void subscribe(FlowableEmitter<Long> e) throws Exception {
+//                while(e.requested() > 0) {
+//
+//                }
+//            }
+//        }, BackpressureStrategy.BUFFER);
+    }
+
+
+
 }
+
+
+
+
+
+
+
