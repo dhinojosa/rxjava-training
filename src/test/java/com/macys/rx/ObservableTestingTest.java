@@ -106,9 +106,10 @@ public class ObservableTestingTest {
                         return Observable.just(Optional.<String>empty());
                     }
                 })
-                .doOnNext(x -> System.out.println(">>>>" + x))
+
                 .observeOn(Schedulers.computation())
-                .map(opt -> opt.map(doc -> doc.split("\n")[1].split(",")[4]));
+                .map(opt -> opt.map(doc -> doc.split("\n")[1].split(",")[4]))
+                .doOnNext(x -> System.out.println(">>>>" + x));
         return Observable.zip(stockNames, optionalObservable, (name, price) ->
                 new Tuple2<>(name, Double.parseDouble(price.orElse("0.0"))));
     }
@@ -124,12 +125,20 @@ public class ObservableTestingTest {
 
 
         Observable<Tuple2<String, Double>> tuple2Observable = processStock(Arrays.asList("M", "ATT"), s -> fakeData);
+
+        tuple2Observable.subscribe(x -> System.out.println("sub: " + x));
+
         TestObserver<Tuple2<String, Double>> testObserver = new TestObserver<>();
 
-        tuple2Observable.subscribe(System.out::println);
 
-        //testObserver.assertNoErrors();
-        //testObserver.assertValues(new Tuple2<>("M", 1111.0), new Tuple2<>("ATT", 1111.0));
+        tuple2Observable.subscribe(testObserver);
+
+        Thread.sleep(1000);
+        testObserver.assertNoErrors();
+        testObserver.assertValueCount(2);
+        testObserver.assertValueSequence(Arrays.asList(new Tuple2<>("M", 1110.0), new Tuple2<>("ATT", 1110.0)));
+
+        Thread.sleep(1000);
     }
 
     @Test
