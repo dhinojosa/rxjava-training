@@ -507,4 +507,15 @@ public class BasicObservableTest {
             }
         });
     }
+
+    @Test
+    public void testMerge() throws Exception {
+        Flowable<String> integerFlowable1 = Flowable.interval(5, TimeUnit.MILLISECONDS).map(x -> "F1:" + x);
+        Flowable<String> integerFlowable2 = Flowable.interval(500, TimeUnit.MILLISECONDS).map(x -> "F2:" + x);
+        Flowable<String> integerFlowable3 = Flowable.interval(1, TimeUnit.SECONDS).map(x -> "F3:" + x);;
+
+        Flowable.merge(integerFlowable1, integerFlowable2, integerFlowable3).subscribe(System.out::println);
+
+        Thread.sleep(50000);
+    }
 }
