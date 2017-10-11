@@ -1,6 +1,7 @@
 package com.macys.rx;
 
 import io.reactivex.Flowable;
+import io.reactivex.MaybeObserver;
 import io.reactivex.Observable;
 import io.reactivex.ObservableSource;
 import io.reactivex.functions.BiFunction;
@@ -16,6 +17,7 @@ import java.io.InputStreamReader;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.Buffer;
+import java.util.Optional;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -52,7 +54,6 @@ public class StockFinderTest {
 
 
     private String getInfoFromURL(String s) throws IOException {
-        System.out.println("getInfoFromURL: " + Thread.currentThread().getName());
         URL url = new URL(s);
         url.openConnection();
         InputStream inputStream = url.openStream();
@@ -74,7 +75,6 @@ public class StockFinderTest {
         Thread.sleep(10000);
     }
 
-
     @Test
     public void testStockPriceSchedulerWithFlowable() throws IOException, InterruptedException {
         Flowable<String> stockNames = Flowable.just("M", "MSFT", "T", "ORCL");
@@ -83,4 +83,26 @@ public class StockFinderTest {
                 Flowable.fromArray(doc.split("\n")).skip(1).take(1)).sequential().subscribe(System.out::println);
         Thread.sleep(10000);
     }
+
+
+    @Test
+    public void testStockPriceSchedulerWithErrorHandling() throws IOException, InterruptedException {
+        Observable<String> stockNames = Observable.just("M", "MSFT", "BTC", "T", "ORCL");
+        Observable<String> urls = stockNames.map(s -> "https://finance.google.com/finance/historical?output=csv&q=" + s);
+        Observable<Optional<String>> optionalObservable = urls
+                .subscribeOn(Schedulers.from(executorService))
+                .concatMap(s -> {
+                    try {
+                        return Observable.just(Optional.of(this.getInfoFromURL(s)));
+                    } catch (Throwable t) {
+                        return Observable.just(Optional.<String>empty());
+                    }
+                })
+                .observeOn(Schedulers.computation())
+                .map(opt -> opt.map(doc -> doc.split("\n")[1].split(",")[4]));
+        Observable.zip(stockNames, optionalObservable, (s, s2) -> new Tuple2<>(s, Double.parseDouble(s2.orElse("0.0"))))
+                .subscribe(System.out::println, Throwable::printStackTrace);
+        Thread.sleep(10000);
+    }
+
 }

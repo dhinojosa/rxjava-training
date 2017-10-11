@@ -1,6 +1,7 @@
 package com.macys.rx;
 
 import io.reactivex.Flowable;
+import io.reactivex.Observable;
 import io.reactivex.schedulers.Schedulers;
 import org.junit.Test;
 import org.reactivestreams.Subscriber;
@@ -48,5 +49,18 @@ public class OpenQuestionsTest {
 
         Thread.sleep(12000);
 
+    }
+
+
+    @Test
+    public void usingFlatMapToJumpConditionallyOntoAnotherThread() throws Exception {
+        Observable.just(1, 2, 3, 4).flatMap(x -> {
+                    if (x % 2 == 0) return Observable.just(x + 1).observeOn(Schedulers.io());
+                    else return Observable.just(x + 3).observeOn(Schedulers.computation());
+                }
+        ).subscribe(x -> {
+            System.out.print(Thread.currentThread().getName());
+            System.out.println(": " + x);
+        });
     }
 }
