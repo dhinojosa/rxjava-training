@@ -130,7 +130,6 @@ public class ObservableTestingTest {
 
         TestObserver<Tuple2<String, Double>> testObserver = new TestObserver<>();
 
-
         tuple2Observable.subscribe(testObserver);
 
         Thread.sleep(1000);
@@ -165,8 +164,9 @@ public class ObservableTestingTest {
 
         tuple2Observable.subscribe(testObserver);
 
+        Thread.sleep(10000);
         testObserver.assertNoErrors();
-        testObserver.assertValues(new Tuple2<>("M", 1111.0), new Tuple2<>("ATT", 1111.0));
+        testObserver.assertValues(new Tuple2<>("M", 20.66), new Tuple2<>("ATT", 1110.0));
     }
 
 }
