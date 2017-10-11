@@ -91,7 +91,7 @@ public class StockFinderTest {
         Observable<String> urls = stockNames.map(s -> "https://finance.google.com/finance/historical?output=csv&q=" + s);
         Observable<Optional<String>> optionalObservable = urls
                 .subscribeOn(Schedulers.from(executorService))
-                .concatMap(s -> {
+                .flatMap(s -> {
                     try {
                         return Observable.just(Optional.of(this.getInfoFromURL(s)));
                     } catch (Throwable t) {
@@ -100,7 +100,11 @@ public class StockFinderTest {
                 })
                 .observeOn(Schedulers.computation())
                 .map(opt -> opt.map(doc -> doc.split("\n")[1].split(",")[4]));
-        Observable.zip(stockNames, optionalObservable, (s, s2) -> new Tuple2<>(s, Double.parseDouble(s2.orElse("0.0"))))
+//                .doOnNext(x -> System.out.println(">>>" + x));
+
+
+        Observable.zip(stockNames, optionalObservable, (name, price) ->
+                new Tuple2<>(name, Double.parseDouble(price.orElse("0.0"))))
                 .subscribe(System.out::println, Throwable::printStackTrace);
         Thread.sleep(10000);
     }

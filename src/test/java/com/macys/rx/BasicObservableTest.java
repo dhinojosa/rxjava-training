@@ -2,8 +2,10 @@ package com.macys.rx;
 
 import io.reactivex.*;
 import io.reactivex.disposables.Disposable;
+import io.reactivex.functions.Action;
 import io.reactivex.functions.BiConsumer;
 import io.reactivex.functions.BiFunction;
+import io.reactivex.schedulers.Schedulers;
 import org.junit.Test;
 
 import java.time.LocalDateTime;
@@ -11,6 +13,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -424,5 +428,83 @@ public class BasicObservableTest {
         Single<List<String>> listSingle = stringObservable.toList();
 
         single.subscribe(System.out::println);
+    }
+
+
+    @Test
+    public void testObserveOnVsSubscribeOn() throws Exception {
+
+        ExecutorService service = Executors.newFixedThreadPool(5);
+
+        Observable<Integer> observable = Observable.create(new ObservableOnSubscribe<Integer>() {
+            @Override
+            public void subscribe(ObservableEmitter<Integer> e) throws Exception {
+                System.out.println("Inside source:" + Thread.currentThread().getName());
+                for (int i = 0; i < 25; i++) {
+                    e.onNext(i);
+                    Thread.sleep(5);
+                }
+                e.onComplete();
+            }
+        }).cache();
+
+        observable.subscribeOn(Schedulers.from(service))
+                  .doOnNext(x -> System.out.println("Before observeOn: " + Thread.currentThread().getName()))
+                  .observeOn(Schedulers.from(service))
+                  .map(x -> x + 1)
+                  .doOnNext(x -> System.out.println("After map: " + Thread.currentThread().getName()))
+                  .subscribe(System.out::println, Throwable::printStackTrace, () -> System.out.println("Done!"));
+
+        observable.subscribe(System.out::println);
+
+
+        Thread.currentThread().join(5000);
+        System.out.println("We are done!");
+        service.shutdown();
+    }
+
+    @Test
+    public void testStoppingObservableAfterSubscription() throws Exception {
+        Observable<Long> longObservable = Observable.interval(1, TimeUnit.SECONDS).map(x -> x + 1);
+
+        Disposable disposable1 = longObservable.subscribe(x -> System.out.println("L1:" + x));
+        longObservable.subscribe(x -> System.out.println("L2:" + x));
+
+        Thread.sleep(2000);
+
+        disposable1.dispose();
+
+        longObservable.subscribe(x -> System.out.println("Last Sub:" + x));
+
+        Thread.sleep(5000);
+    }
+
+    @Test
+    public void testStoppingObservableUsingObserver() throws Exception {
+        Observable<Long> longObservable = Observable.interval(1, TimeUnit.SECONDS).map(x -> x + 1);
+        longObservable.subscribe(new Observer<Long>() {
+            private Disposable disposable;
+
+            @Override
+            public void onSubscribe(Disposable d) {
+                this.disposable = d;
+            }
+
+            @Override
+            public void onNext(Long aLong) {
+                System.out.println(aLong);
+                if (aLong > 50) disposable.dispose();
+            }
+
+            @Override
+            public void onError(Throwable e) {
+                e.printStackTrace();
+            }
+
+            @Override
+            public void onComplete() {
+                System.out.println("Done");
+            }
+        });
     }
 }
