@@ -9,6 +9,7 @@ import rx.observables.GroupedObservable;
 import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import java.util.stream.Stream;
 
 public class ObservableTest {
@@ -155,11 +156,36 @@ public class ObservableTest {
                 .flatMap(s -> Observable.from(s.split(" ")));
 
         //key:String, value:Observable{String}
-        Observable<Tuple2<String, Integer>> tuple2Observable = stringObservable
-                .map(String::toLowerCase)
-                .groupBy(w -> w)
-                .flatMap(gr -> gr.count()
-                                 .map(c -> new Tuple2<>(gr.getKey(), c)));
+        Observable<String> observable = stringObservable
+                .map(String::toLowerCase);
+
+//
+//        Observable<String> keys = observable.filter(w -> !w
+//                .isEmpty()).groupBy(w -> w.substring(0, 1)).map(g -> g.getKey
+//                ());
+//
+//        keys.subscribe(n -> System.out.println(n));
+//
+//
+
+
+        final int i = 100;
+
+        Function<Integer, Integer> f = integer -> integer + i;
+
+
+        Observable<GroupedObservable<String, String>>
+                groupedObservableObservable = stringObservable
+                .groupBy(x -> x);
+
+
+        Observable<Tuple2<String, Integer>> tuple2Observable =
+                groupedObservableObservable
+                        .flatMap(gr -> {
+                            Observable<Integer> count = gr.count();
+                            return count
+                                    .map(c -> new Tuple2<>(gr.getKey(), c));
+                        });
 
         tuple2Observable.subscribe(System.out::println,
                 Throwable::printStackTrace,
