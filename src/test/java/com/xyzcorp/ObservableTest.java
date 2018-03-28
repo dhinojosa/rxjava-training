@@ -3,6 +3,8 @@ package com.xyzcorp;
 import org.junit.Test;
 import rx.Observable;
 import rx.Observer;
+import rx.functions.Func1;
+import rx.observables.GroupedObservable;
 
 import java.time.LocalDateTime;
 import java.util.Optional;
@@ -140,7 +142,7 @@ public class ObservableTest {
     }
 
     @Test
-    public void testFlatMapWithLyrics() {
+    public void testFlatMapAndGroupByWithLyrics() {
         Observable<String> lyrics = Observable.just("You put right foot in",
                 "You put right foot in",
                 "You put left foot in",
@@ -152,11 +154,15 @@ public class ObservableTest {
         Observable<String> stringObservable = lyrics
                 .flatMap(s -> Observable.from(s.split(" ")));
 
-        stringObservable
+        //key:String, value:Observable{String}
+        Observable<Tuple2<String, Integer>> tuple2Observable = stringObservable
                 .map(String::toLowerCase)
-                .distinct()
-                .subscribe(System.out::println,
-                        Throwable::printStackTrace,
-                        () -> System.out.println("Done"));
+                .groupBy(w -> w)
+                .flatMap(gr -> gr.count()
+                                 .map(c -> new Tuple2<>(gr.getKey(), c)));
+
+        tuple2Observable.subscribe(System.out::println,
+                Throwable::printStackTrace,
+                () -> System.out.println("Done"));
     }
 }
