@@ -6,13 +6,16 @@ import rx.Observer;
 import rx.Subscriber;
 import rx.functions.Func2;
 import rx.observables.GroupedObservable;
+import rx.schedulers.Schedulers;
 
 import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URL;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.*;
 import java.util.stream.Collectors;
@@ -264,7 +267,8 @@ public class ObservableTest {
 
     public Observable<Long> getAverageVolume(Observable<String> data) {
         Observable<Long> volumes = data.map(s -> s.split(",")[5])
-                                   .map(Long::valueOf);
+                                   .map(Long::valueOf)
+                                       .onExceptionResumeNext(Observable.just(0L));
         Observable<Long> subtotalObservable = volumes.reduce(0L, (total, next) -> total + next);
         return subtotalObservable.flatMap(t -> volumes.count().map(c -> t / c));
     }
@@ -284,7 +288,8 @@ public class ObservableTest {
         Observable<Pair<String, Long>> averageObservable =
                 symbolObservable
                         .flatMap(symbol ->
-                                getAverageVolume(symbol).map(avg -> new Pair<>(symbol, avg)));
+                                getAverageVolume(symbol)
+                                        .map(avg -> new Pair<>(symbol, avg)));
 
         averageObservable.subscribe(System.out::println,
                 Throwable::printStackTrace,
@@ -301,6 +306,76 @@ public class ObservableTest {
         );
 
         getAverageVolume(data).subscribe(avg -> System.out.println(avg));
+    }
+
+    @Test
+    public void testFlatMapMapCombo() {
+        Observable<Integer> o1 = Observable.just(1,2,3);
+        Observable<Character> o2 = Observable.just('a','b','c');
+
+        Observable<Pair<Integer, Character>> pairObservable = o1.flatMap(x ->
+                o2.map(y -> new Pair<>(x, y)));
+
+        pairObservable.subscribe(System.out::println);
+    }
+
+    @Test
+    public void testZipCombo() throws InterruptedException {
+        Observable<Integer> o1 = Observable.range(1, 10);
+        Observable<Character> o2 = Observable.just('a','b','c');
+
+        Observable<Pair<Integer, Character>> pairObservable =
+                o1.zipWith(o2, Pair::new);
+
+        Observable<Pair<Integer, Character>> pairObservable2 =
+                Observable.zip(o1, o2, Pair::new);
+
+        pairObservable.subscribe(System.out::println);
+        pairObservable2.subscribe(System.out::println);
+
+        Observable<String> pairObservable3 =
+                Observable.zip(Observable.empty(), o2, (n, c) -> n + ". " + c);
+
+        System.out.println(pairObservable3
+                .toList()
+                .toBlocking()
+                .singleOrDefault(Collections.emptyList()));
+
+        Thread.sleep(2000);
+    }
+
+    @Test
+    public void testSchedulersObserveOn() throws InterruptedException {
+        Observable
+                .interval(250, TimeUnit.MILLISECONDS)
+                .doOnNext(i -> printCurrentThread("Stage1", i))
+                .observeOn(Schedulers.newThread())
+                .map(tick -> LocalDateTime.now())
+                .doOnNext(i -> printCurrentThread("Stage2", i))
+                .observeOn(Schedulers.from(executorService))
+                .filter(ldt -> ldt.getSecond() % 2 != 0)
+                .doOnNext(i -> printCurrentThread("Stage3", i))
+                .subscribe(System.out::println);
+
+        Thread.sleep(20000);
+    }
+
+    @Test
+    public void testSchedulersSubscribeOn() throws InterruptedException {
+        Observable
+                .range(2, 10000)
+                .doOnNext(i -> printCurrentThread("Stage1", i))
+                .subscribeOn(Schedulers.io())
+                .observeOn(Schedulers.newThread())
+                .map(tick -> LocalDateTime.now())
+                .doOnNext(i -> printCurrentThread("Stage2", i))
+                .observeOn(Schedulers.from(executorService))
+                .filter(ldt -> ldt.getSecond() % 2 != 0)
+                .doOnNext(i -> printCurrentThread("Stage3", i))
+                .subscribe(System.out::println);
+
+        Thread.sleep(20000);
+
     }
 }
 
