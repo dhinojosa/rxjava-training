@@ -250,41 +250,47 @@ public class ObservableTest {
     }
 
 
-    public Future<String> getStockPrices(String symbol) {
-        ExecutorService executorService = Executors.newFixedThreadPool(5);
-        return executorService.submit(new Callable<String>() {
-            @Override
-            public String call() throws Exception {
-                System.out.println("Getting stock for " + symbol);
-                String urlString = "https://www.google.com/finance/getprices?q=" + symbol + "&i=60&p=15d&f=d,o,h,l,c,v";
+    ExecutorService executorService = Executors.newFixedThreadPool(5);
 
-                //String urlString =
-                //        "https://gist.githubusercontent.com/dhinojosa/cdb45f0031ab427b78642b03b761f25a/raw/22b3007643891a961c6ea9e38dc3b02cd2a63917/goog.csv";
-                URL url = new URL(urlString);
-                InputStream is = url.openStream();
-                InputStreamReader reader = new InputStreamReader(is);
-                BufferedReader bufferedReader = new BufferedReader(reader);
-                return bufferedReader.lines().collect(Collectors.joining("\n"));
-            }
+    public Future<String> getStockPrices(String symbol) {
+        return executorService.submit(() -> {
+            String urlString = "https://www.google.com/finance/getprices?q=" + symbol + "&i=60&p=15d&f=d,o,h,l,c,v";
+            InputStream is = new URL(urlString).openStream();
+            InputStreamReader reader = new InputStreamReader(is);
+            BufferedReader bufferedReader = new BufferedReader(reader);
+            return bufferedReader.lines().collect(Collectors.joining("\n"));
         });
     }
-
 
     public Observable<Long> getAverageVolume(Observable<String> data) {
         Observable<Long> volumes = data.map(s -> s.split(",")[5])
-                                   .map(s2 -> Long.valueOf(s2));
-
-        Observable<Long> subtotalObservable = volumes.reduce(0L, new Func2<Long, Long, Long>() {
-            @Override
-            public Long call(Long total, Long next) {
-                System.out.println("total:" + total + ", next:" + next);
-                return total + next;
-            }
-        });
-
-        return subtotalObservable.flatMap(t -> volumes
-                .count().map(c -> t / c));
+                                   .map(Long::valueOf);
+        Observable<Long> subtotalObservable = volumes.reduce(0L, (total, next) -> total + next);
+        return subtotalObservable.flatMap(t -> volumes.count().map(c -> t / c));
     }
+
+
+    public Observable<Long> getAverageVolume(String symbol) {
+         return Observable.from(getStockPrices(symbol))
+                         .flatMap(b ->
+                                 getAverageVolume(Observable.from(b.split("\n")).skip(8)));
+    }
+
+    @Test
+    public void testGetStockPrices() {
+        Observable<String> symbolObservable =
+                Observable.just("GOOG", "M", "AMD", "NVDA");
+
+        Observable<Pair<String, Long>> averageObservable =
+                symbolObservable
+                        .flatMap(symbol ->
+                                getAverageVolume(symbol).map(avg -> new Pair<>(symbol, avg)));
+
+        averageObservable.subscribe(System.out::println,
+                Throwable::printStackTrace,
+                () -> System.out.println("Done"));
+    }
+
 
     @Test
     public void testAverageVolume() {
@@ -295,22 +301,6 @@ public class ObservableTest {
         );
 
         getAverageVolume(data).subscribe(avg -> System.out.println(avg));
-    }
-
-    @Test
-    public void testGetStockPrices() throws ExecutionException,
-            InterruptedException {
-        Observable<String> symbolObservable = Observable.just("GOOG", "M", "AMD", "NVDA");
-
-        Observable<String> map =
-                symbolObservable
-                        .flatMap(s ->
-                                Observable.from(getStockPrices(s))
-                                          .flatMap(b -> Observable.from(b.split("\n")).skip(8)));
-
-        map.subscribe(System.out::println,
-                Throwable::printStackTrace,
-                () -> System.out.println("Done"));
     }
 }
 
