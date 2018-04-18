@@ -4,6 +4,7 @@ import org.junit.Test;
 import rx.Observable;
 import rx.Observer;
 import rx.Subscriber;
+import rx.functions.Func2;
 import rx.observables.GroupedObservable;
 
 import java.io.BufferedReader;
@@ -15,6 +16,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.*;
 import java.util.stream.Collectors;
+
+import static org.junit.Assert.assertEquals;
 
 public class ObservableTest {
 
@@ -252,8 +255,11 @@ public class ObservableTest {
         return executorService.submit(new Callable<String>() {
             @Override
             public String call() throws Exception {
-                String urlString =
-                        "https://gist.githubusercontent.com/dhinojosa/cdb45f0031ab427b78642b03b761f25a/raw/22b3007643891a961c6ea9e38dc3b02cd2a63917/goog.csv";
+                System.out.println("Getting stock for " + symbol);
+                String urlString = "https://www.google.com/finance/getprices?q=" + symbol + "&i=60&p=15d&f=d,o,h,l,c,v";
+
+                //String urlString =
+                //        "https://gist.githubusercontent.com/dhinojosa/cdb45f0031ab427b78642b03b761f25a/raw/22b3007643891a961c6ea9e38dc3b02cd2a63917/goog.csv";
                 URL url = new URL(urlString);
                 InputStream is = url.openStream();
                 InputStreamReader reader = new InputStreamReader(is);
@@ -263,14 +269,49 @@ public class ObservableTest {
         });
     }
 
+
+    public Observable<Long> getAverageVolume(Observable<String> data) {
+        Observable<Long> volumes = data.map(s -> s.split(",")[5])
+                                   .map(s2 -> Long.valueOf(s2));
+
+        Observable<Long> subtotalObservable = volumes.reduce(0L, new Func2<Long, Long, Long>() {
+            @Override
+            public Long call(Long total, Long next) {
+                System.out.println("total:" + total + ", next:" + next);
+                return total + next;
+            }
+        });
+
+        return subtotalObservable.flatMap(t -> volumes
+                .count().map(c -> t / c));
+    }
+
+    @Test
+    public void testAverageVolume() {
+        Observable<String> data = Observable.just(
+                "1,1009.2,1011.74,1008.29,1009.93,7800",
+                "2,1013.98,1013.98,1007.76,1010.27,4400",
+                "3,1010.06,1013.455,1009.67,1013.455,4000"
+        );
+
+        getAverageVolume(data).subscribe(avg -> System.out.println(avg));
+    }
+
     @Test
     public void testGetStockPrices() throws ExecutionException,
             InterruptedException {
-        System.out.println(getStockPrices("M").get());
+        Observable<String> symbolObservable = Observable.just("GOOG", "M", "AMD", "NVDA");
+
+        Observable<String> map =
+                symbolObservable
+                        .flatMap(s ->
+                                Observable.from(getStockPrices(s))
+                                          .flatMap(b -> Observable.from(b.split("\n")).skip(8)));
+
+        map.subscribe(System.out::println,
+                Throwable::printStackTrace,
+                () -> System.out.println("Done"));
     }
-
-
-    //zip
 }
 
 
