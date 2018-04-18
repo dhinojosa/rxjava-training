@@ -4,15 +4,17 @@ import org.junit.Test;
 import rx.Observable;
 import rx.Observer;
 import rx.Subscriber;
-import rx.functions.Action0;
-import rx.functions.Action1;
-import rx.functions.Func1;
 import rx.observables.GroupedObservable;
 
+import java.io.BufferedReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.net.URL;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.*;
+import java.util.stream.Collectors;
 
 public class ObservableTest {
 
@@ -100,13 +102,10 @@ public class ObservableTest {
                 Executors.newFixedThreadPool(5);
 
         Future<Integer> future =
-                executorService.submit(new Callable<Integer>() {
-                    @Override
-                    public Integer call() {
-                        System.out.println("In future: " + Thread
-                                .currentThread().getName());
-                        return 68;
-                    }
+                executorService.submit(() -> {
+                    System.out.println("In future: " + Thread
+                            .currentThread().getName());
+                    return 68;
                 });
 
         //RX Java
@@ -209,37 +208,69 @@ public class ObservableTest {
     }
 
     @Test
-    public void testFlatMapWithWords() {
+    public void testFlatMapAndGroupByWithWordSize() {
 
-        //filter
+        Observable.just("I see trees of green",
+                "Trees provide oxygen! Damn it!",
+                "Oxygen is in water")
+                  .map(String::toLowerCase)
+                  .flatMap(s -> Observable.from(s.split(" ")))
+                  .map(s -> s.replace("!", ""))
+                  .groupBy(String::length)
+                  .subscribe(go -> go.subscribe(s -> {
+                      System.out.println("Group Key:" + go.getKey() + " " +
+                              "Value:" + s);
+                  }));
+    }
 
+    @Test
+    public void testFlatMapAndGroupByWithWordCount() {
         Observable<String> sentences =
                 Observable.just("I see trees of green",
-                "Trees provide oxygen! Damn it!",
-                "Oxygen is in water");
+                        "Trees provide oxygen! Damn it!",
+                        "Oxygen is in water");
 
         Observable<String> words = sentences
-                .map(s -> s.toLowerCase())
+                .map(String::toLowerCase)
                 .flatMap(s -> Observable.from(s.split(" ")))
                 .map(s -> s.replace("!", ""));
 
-        Observable<GroupedObservable<Integer, String>>
-                grouped = words.groupBy(s -> s.length());
+        Observable<GroupedObservable<String, String>>
+                grouped = words.groupBy(s -> s);
 
-        grouped.subscribe(new Action1<GroupedObservable<Integer, String>>() {
+        Observable<Pair<String, Integer>> pairObservable =
+                grouped.flatMap(go ->
+                        go.count()
+                          .map(i -> new Pair<>(go.getKey(), i)));
+
+        pairObservable.subscribe(System.out::println);
+    }
+
+
+    public Future<String> getStockPrices(String symbol) {
+        ExecutorService executorService = Executors.newFixedThreadPool(5);
+        return executorService.submit(new Callable<String>() {
             @Override
-            public void call(GroupedObservable<Integer, String> go) {
-                go.subscribe(new Action1<String>() {
-                    @Override
-                    public void call(String s) {
-                        System.out.println("Group Key:" + go.getKey() + " Value:" + s);
-                    }
-                });
+            public String call() throws Exception {
+                String urlString =
+                        "https://gist.githubusercontent.com/dhinojosa/cdb45f0031ab427b78642b03b761f25a/raw/22b3007643891a961c6ea9e38dc3b02cd2a63917/goog.csv";
+                URL url = new URL(urlString);
+                InputStream is = url.openStream();
+                InputStreamReader reader = new InputStreamReader(is);
+                BufferedReader bufferedReader = new BufferedReader(reader);
+                return bufferedReader.lines().collect(Collectors.joining("\n"));
             }
         });
-
-
     }
+
+    @Test
+    public void testGetStockPrices() throws ExecutionException,
+            InterruptedException {
+        System.out.println(getStockPrices("M").get());
+    }
+
+
+    //zip
 }
 
 
