@@ -4,7 +4,6 @@ import org.junit.Test;
 import rx.Observable;
 import rx.Observer;
 import rx.Subscriber;
-import rx.functions.Func2;
 import rx.observables.GroupedObservable;
 import rx.schedulers.Schedulers;
 
@@ -13,14 +12,14 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URL;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
-
-import static org.junit.Assert.assertEquals;
 
 public class ObservableTest {
 
@@ -253,11 +252,12 @@ public class ObservableTest {
     }
 
 
-    ExecutorService executorService = Executors.newFixedThreadPool(5);
+    private ExecutorService executorService = Executors.newFixedThreadPool(5);
 
-    public Future<String> getStockPrices(String symbol) {
+    private Future<String> getStockPrices(String symbol) {
         return executorService.submit(() -> {
-            String urlString = "https://www.google.com/finance/getprices?q=" + symbol + "&i=60&p=15d&f=d,o,h,l,c,v";
+            String urlString = "https://www.google.com/finance/getprices?q="
+                    + symbol + "&i=60&p=15d&f=d,o,h,l,c,v";
             InputStream is = new URL(urlString).openStream();
             InputStreamReader reader = new InputStreamReader(is);
             BufferedReader bufferedReader = new BufferedReader(reader);
@@ -265,19 +265,23 @@ public class ObservableTest {
         });
     }
 
-    public Observable<Long> getAverageVolume(Observable<String> data) {
+    private Observable<Long> getAverageVolume(Observable<String> data) {
         Observable<Long> volumes = data.map(s -> s.split(",")[5])
-                                   .map(Long::valueOf)
-                                       .onExceptionResumeNext(Observable.just(0L));
-        Observable<Long> subtotalObservable = volumes.reduce(0L, (total, next) -> total + next);
+                                       .map(Long::valueOf)
+                                       .onExceptionResumeNext(Observable.just
+                                               (0L));
+        Observable<Long> subtotalObservable = volumes.reduce(0L, (total,
+                                                                  next) ->
+                total + next);
         return subtotalObservable.flatMap(t -> volumes.count().map(c -> t / c));
     }
 
 
-    public Observable<Long> getAverageVolume(String symbol) {
-         return Observable.from(getStockPrices(symbol))
+    private Observable<Long> getAverageVolume(String symbol) {
+        return Observable.from(getStockPrices(symbol))
                          .flatMap(b ->
-                                 getAverageVolume(Observable.from(b.split("\n")).skip(8)));
+                                 getAverageVolume(Observable.from(b.split
+                                         ("\n")).skip(8)));
     }
 
     @Test
@@ -305,13 +309,13 @@ public class ObservableTest {
                 "3,1010.06,1013.455,1009.67,1013.455,4000"
         );
 
-        getAverageVolume(data).subscribe(avg -> System.out.println(avg));
+        getAverageVolume(data).subscribe(System.out::println);
     }
 
     @Test
     public void testFlatMapMapCombo() {
-        Observable<Integer> o1 = Observable.just(1,2,3);
-        Observable<Character> o2 = Observable.just('a','b','c');
+        Observable<Integer> o1 = Observable.just(1, 2, 3);
+        Observable<Character> o2 = Observable.just('a', 'b', 'c');
 
         Observable<Pair<Integer, Character>> pairObservable = o1.flatMap(x ->
                 o2.map(y -> new Pair<>(x, y)));
@@ -322,7 +326,7 @@ public class ObservableTest {
     @Test
     public void testZipCombo() throws InterruptedException {
         Observable<Integer> o1 = Observable.range(1, 10);
-        Observable<Character> o2 = Observable.just('a','b','c');
+        Observable<Character> o2 = Observable.just('a', 'b', 'c');
 
         Observable<Pair<Integer, Character>> pairObservable =
                 o1.zipWith(o2, Pair::new);
