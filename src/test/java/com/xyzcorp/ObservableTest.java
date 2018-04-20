@@ -4,6 +4,8 @@ import org.junit.Test;
 import rx.Observable;
 import rx.Observer;
 import rx.Subscriber;
+import rx.Subscription;
+import rx.observables.ConnectableObservable;
 import rx.observables.GroupedObservable;
 import rx.schedulers.Schedulers;
 
@@ -379,7 +381,92 @@ public class ObservableTest {
                 .subscribe(System.out::println);
 
         Thread.sleep(20000);
+    }
 
+
+    @Test
+    public void testColdObservable() throws InterruptedException {
+        Observable<Long> interval = Observable.interval(1, TimeUnit.SECONDS);
+
+        interval
+                .doOnNext(i -> printCurrentThread("Before S1 Subscribe"))
+                .subscribe(n -> System.out.println("S1:" + n));
+
+        printCurrentThread("Before Sleep 2000");
+        Thread.sleep(2000);
+
+        interval
+                .doOnNext(i -> printCurrentThread("Before S2 Subscribe"))
+                .subscribe(n -> System.out.println("S2:" + n));
+
+        printCurrentThread("Before Sleep 10000");
+        Thread.sleep(10000);
+    }
+
+    @Test
+    public void testHotObservable() throws InterruptedException {
+        ConnectableObservable<Long> interval =
+                Observable.interval(1, TimeUnit.SECONDS).publish();
+
+        interval.connect();
+        Thread.sleep(2000);
+
+        interval
+                .doOnNext(i -> printCurrentThread("Before S1 Subscribe"))
+                .subscribe(n -> System.out.println("S1:" + n));
+
+        Thread.sleep(2000);
+
+        interval
+                .doOnNext(i -> printCurrentThread("Before S2 Subscribe"))
+                .subscribe(n -> System.out.println("S2:" + n));
+
+
+        Thread.sleep(1000);
+    }
+
+    @Test
+    public void testHotObservableWithRefCount() throws InterruptedException {
+        Observable<Long> interval =
+                Observable.interval(1, TimeUnit.SECONDS)
+                          .doOnNext(n -> System.out.println("We are running with:" + n))
+                          .publish().refCount();
+
+        Subscription s1Subscribe = interval
+                .doOnNext(i -> printCurrentThread("Before S1 Subscribe"))
+                .subscribe(n -> System.out.println("S1:" + n));
+
+        Thread.sleep(2000);
+
+        Subscription s2Subscribe = interval
+                .doOnNext(i -> printCurrentThread("Before S2 Subscribe"))
+                .subscribe(n -> System.out.println("S2:" + n));
+
+        Thread.sleep(2000);
+        s1Subscribe.unsubscribe();
+        Thread.sleep(1000);
+        s2Subscribe.unsubscribe();
+
+        Thread.sleep(10000);
+    }
+
+
+    @Test
+    public void testBackpressure() throws InterruptedException {
+        Observable
+                .interval(10, TimeUnit.MICROSECONDS)
+                .onBackpressureLatest()
+                .observeOn(Schedulers.io())
+                .subscribe(n -> {
+                    try {
+                        Thread.sleep(5);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                    System.out.println(n);
+                });
+
+        Thread.sleep(10000);
     }
 }
 
