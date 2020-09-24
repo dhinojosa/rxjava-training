@@ -27,4 +27,22 @@ public class HotColdObservableTest {
         interval.subscribe(i -> System.out.println("S2:" + i));
         Thread.sleep(20000);
     }
+
+    @Test
+    public void testHotObservableWithManualConnect() throws InterruptedException {
+        ConnectableObservable<Long> connectableObservable = Observable.interval(1,
+            TimeUnit.SECONDS).publish();
+        Thread.sleep(1000);
+        connectableObservable.subscribe(i -> System.out.println("S1:" + i));
+        Thread.sleep(5000);
+        connectableObservable.subscribe(i -> System.out.println("S2:" + i));
+        Thread.sleep(5000);
+        connectableObservable.subscribe(i -> System.out.println("S3:" + i));
+        Thread.sleep(5000);
+        System.out.println("I suspect nothing is happening");
+        connectableObservable.connect(); //start the show
+        Thread.sleep(5000);
+        connectableObservable.subscribe(i -> System.out.println("S4:" + i));
+        Thread.sleep(20000);
+    }
 }
