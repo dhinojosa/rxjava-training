@@ -1,27 +1,17 @@
 package com.xyzcorp;
 
-
-import rx.Observable;
+import io.reactivex.rxjava3.core.Observable;
 
 import java.util.concurrent.TimeUnit;
 
 public class IntervalRunner {
     public static void main(String[] args) throws InterruptedException {
-       Observable.interval(1, TimeUnit.SECONDS)
-                  .subscribe(System.out::println);
-
-        Thread thread = new Thread(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    Thread.sleep(50000);
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }
-            }
-        });
-
-        thread.setDaemon(true);
-        thread.start();
+        Observable<Long> intervalObservable =
+            Observable.interval(1, TimeUnit.SECONDS);
+        intervalObservable.subscribe(
+            System.out::println,
+            Throwable::printStackTrace,
+            () -> System.out.println("Done"));
+        Thread.currentThread().join();
     }
 }
