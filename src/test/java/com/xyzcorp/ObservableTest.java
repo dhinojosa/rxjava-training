@@ -1,11 +1,15 @@
 package com.xyzcorp;
 
-import io.reactivex.rxjava3.core.Maybe;
-import io.reactivex.rxjava3.core.Observable;
+import io.reactivex.rxjava3.annotations.NonNull;
+import io.reactivex.rxjava3.core.*;
 import io.reactivex.rxjava3.disposables.Disposable;
+import io.reactivex.rxjava3.functions.BiConsumer;
+import io.reactivex.rxjava3.functions.Consumer;
+import io.reactivex.rxjava3.functions.Supplier;
 import io.reactivex.rxjava3.observables.GroupedObservable;
 import org.junit.Test;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -65,7 +69,73 @@ public class ObservableTest {
                 return total * next;
             });
         reduction.subscribe(System.out::println, Throwable::printStackTrace);
+    }
 
+    @Test
+    public void testCollect() {
+        Single<List<Integer>> collect =
+            Observable.just(1, 2, 3, 4, 5).collect(
+                () -> new ArrayList<>(), //initializer
+                (integers, e) -> integers.add(e)); //going be called 5 times
+
+        collect.subscribe(System.out::println);
+
+
+        //1. result = []
+        //2. integers = [], e = 1 -> integers.add(1);
+        //3. integers = [1], e = 2 -> integers.add(2);
+        //4. integers = [1,2], e = 3 -> integers.add(3)
+        //....
+        //   integers = [1,2,3,4,5]
+
+
+        //Maybe = 0 or 1
+        //Single = 1  (Mono)
+        //Observable = 0 to infinity
+        //Flowable = 0 to infinity (backpressure) (Flux)
+    }
+
+    static class ThreadObserver<T> implements Observer<T> {
+
+        private String name;
+
+        public ThreadObserver(String name) {
+            this.name = name;
+        }
+
+        @Override
+        public void onSubscribe(@NonNull Disposable d) {
+            System.out.format("%s: OnSubscribe in [%s]\n", name, Thread.currentThread().getName());
+        }
+
+        @Override
+        public void onNext(@NonNull T t) {
+            System.out.format("%s: On Next (%s) in [%s]\n", name, t.toString(), Thread.currentThread().getName());
+        }
+
+        @Override
+        public void onError(@NonNull Throwable e) {
+            System.out.format("%s: On Error (%s) in [%s]\n", name, e.getMessage(), Thread.currentThread().getName());
+        }
+
+        @Override
+        public void onComplete() {
+            System.out.format("%s: On Complete in [%s]\n", name, Thread.currentThread().getName());
+        }
+    }
+
+    @Test
+    public void collect2() {
+        Single<StringBuilder> collect =
+            Observable.just(1, 2, 3, 4, 5)
+                      .doOnEach(new ThreadObserver<>("my-monitor"))
+                      .collect(StringBuilder::new, //initializer
+                          (stringBuilder, integer) -> {
+                              stringBuilder.append(":");
+                              stringBuilder.append(integer);
+                          });
+        collect.map(StringBuilder::toString)
+               .subscribe(System.out::println);
     }
 
     @Test
@@ -106,15 +176,36 @@ public class ObservableTest {
             "Broccoli", "Spinach", "Tomatoes", "Cheese", "Yogurt", "Cabbage",
             "Mushroom");
 
-        //Create Observable from groceries
-        //Hint: zip, zipWith
-        //Hint: range (i.e. Observable Range)
-        //Observable<String> elements
-        // 1. Bread
-        // 2. Eggs
-        // 3. Broccoli
-        // subscribe
+        Observable<String> stringObservables =
+            Observable.fromIterable(groceries);
+        Observable<Integer> numbersObservables =
+            Observable.range(1, Integer.MAX_VALUE);
+        stringObservables
+            .zipWith(numbersObservables, (s1, s2) -> s2 + ". " + s1)
+            .subscribe(System.out::println);
     }
+
+    @Test
+    public void testAmb() throws InterruptedException {
+        Observable<String> o1 =
+            Observable.interval(1, TimeUnit.SECONDS)
+                      .map(i -> "o1:" + i)
+                      .delay(2, TimeUnit.SECONDS);
+        Observable<String> o2 =
+            Observable.interval(1, TimeUnit.SECONDS)
+                      .map(i -> "o2:" + i)
+                      .delay(1, TimeUnit.SECONDS);
+        Observable<String> o3 =
+            Observable.interval(1, TimeUnit.SECONDS)
+                      .map(i -> "o3:" + i)
+                      .delay(3, TimeUnit.SECONDS);
+        Observable.ambArray(o1, o2, o3).take(5).subscribe(System.out::println);
+        Thread.sleep(10000);
+    }
+    //1. Choose either concat, (merge, mergeWith)
+    //2. Prove the marble diagrams
+
+
 }
 
 
