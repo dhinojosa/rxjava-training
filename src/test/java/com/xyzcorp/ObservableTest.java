@@ -5,10 +5,13 @@ import io.reactivex.rxjava3.core.*;
 import io.reactivex.rxjava3.disposables.Disposable;
 import io.reactivex.rxjava3.functions.BiConsumer;
 import io.reactivex.rxjava3.functions.Consumer;
+import io.reactivex.rxjava3.functions.Function;
 import io.reactivex.rxjava3.functions.Supplier;
 import io.reactivex.rxjava3.observables.GroupedObservable;
+import io.reactivex.rxjava3.observers.TestObserver;
 import org.junit.Test;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -55,9 +58,10 @@ public class ObservableTest {
 
     @Test
     public void testFlatMap() {
-        Observable<Integer> map =
-            Observable.just(1, 2, 3, 4, 5)
-                      .flatMap(x -> Observable.just(-x, x, x + 1));
+
+        Observable<Integer> map = Observable.just(1, 2, 3, 4, 5)
+                                            .flatMap(x -> Observable.just(-x,
+                                                x, x + 1));
         map.subscribe(System.out::println);
     }
 
@@ -105,22 +109,26 @@ public class ObservableTest {
 
         @Override
         public void onSubscribe(@NonNull Disposable d) {
-            System.out.format("%s: OnSubscribe in [%s]\n", name, Thread.currentThread().getName());
+            System.out.format("%s: OnSubscribe in [%s]\n", name,
+                Thread.currentThread().getName());
         }
 
         @Override
         public void onNext(@NonNull T t) {
-            System.out.format("%s: On Next (%s) in [%s]\n", name, t.toString(), Thread.currentThread().getName());
+            System.out.format("%s: On Next (%s) in [%s]\n", name,
+                t.toString(), Thread.currentThread().getName());
         }
 
         @Override
         public void onError(@NonNull Throwable e) {
-            System.out.format("%s: On Error (%s) in [%s]\n", name, e.getMessage(), Thread.currentThread().getName());
+            System.out.format("%s: On Error (%s) in [%s]\n", name,
+                e.getMessage(), Thread.currentThread().getName());
         }
 
         @Override
         public void onComplete() {
-            System.out.format("%s: On Complete in [%s]\n", name, Thread.currentThread().getName());
+            System.out.format("%s: On Complete in [%s]\n", name,
+                Thread.currentThread().getName());
         }
     }
 
@@ -138,6 +146,42 @@ public class ObservableTest {
                .subscribe(System.out::println);
     }
 
+    static class Book {
+        public String title;
+        public int pages;
+
+        public Book(String title) {
+            this.title = title;
+        }
+    }
+
+    static class Author {
+        public String firstName;
+        public String lastName;
+        public List<Book> books;
+
+        public Author(String firstName, String lastName, List<Book> books) {
+            this.firstName = firstName;
+            this.lastName = lastName;
+            this.books = books;
+        }
+    }
+
+    @Test
+    public void flatMapExample2() {
+        Author author = new Author("John", "Dos Pasos",
+            Arrays.asList(new Book("USA"), new Book("The Palace")));
+        Author author2 = new Author("Emily", "Bronte",
+            Arrays.asList(new Book("Withering Heights"),
+                new Book("Green Skies")));
+
+        Observable<Author> authors = Observable.just(author, author2);
+        Observable<Book> books =
+            authors.flatMapIterable(a -> a.books);
+        Observable<String> titles = books.map(b -> b.title);
+        titles.subscribe(t -> System.out.println(t));
+    }
+
     @Test
     public void quiz() {
         List<String> strings = Arrays.asList(
@@ -153,7 +197,7 @@ public class ObservableTest {
             Observable
                 .fromIterable(strings)
                 .flatMap(s1 -> Observable.fromArray(s1.split(" ")))
-                .map(String::toUpperCase)
+                .map(s2 -> s2.toUpperCase())
                 .groupBy(w -> w.charAt(0));
 
 
@@ -202,8 +246,25 @@ public class ObservableTest {
         Observable.ambArray(o1, o2, o3).take(5).subscribe(System.out::println);
         Thread.sleep(10000);
     }
-    //1. Choose either concat, (merge, mergeWith)
-    //2. Prove the marble diagrams
+
+
+    @Test
+    public void testZipWithTestObserver() {
+        List<String> groceries = Arrays.asList("Bread", "Eggs",
+            "Broccoli");
+
+        Observable<String> stringObservables =
+            Observable.fromIterable(groceries);
+        Observable<Integer> numbersObservables =
+            Observable.range(1, Integer.MAX_VALUE);
+        Observable<String> zippedObservables = stringObservables
+            .zipWith(numbersObservables, (s1, s2) -> s2 + ". " + s1);
+        TestObserver<String> testObserver = zippedObservables.test();
+        testObserver.assertNoErrors();
+        testObserver.assertValues("1. Bread", "2. Eggs", "3. Broccoli");
+
+    }
+
 
 
 }
