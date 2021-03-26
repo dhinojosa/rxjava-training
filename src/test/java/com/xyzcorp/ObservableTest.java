@@ -1,15 +1,20 @@
 package com.xyzcorp;
 
 import io.reactivex.rxjava3.annotations.NonNull;
-import io.reactivex.rxjava3.core.Maybe;
-import io.reactivex.rxjava3.core.MaybeObserver;
-import io.reactivex.rxjava3.core.Observable;
-import io.reactivex.rxjava3.core.Observer;
+import io.reactivex.rxjava3.core.*;
 import io.reactivex.rxjava3.disposables.Disposable;
+import io.reactivex.rxjava3.functions.BiConsumer;
+import io.reactivex.rxjava3.functions.Supplier;
+import io.reactivex.rxjava3.observables.GroupedObservable;
+import io.reactivex.rxjava3.observers.TestObserver;
+import io.reactivex.rxjava3.schedulers.TestScheduler;
 import org.junit.Test;
 
+import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -158,7 +163,6 @@ public class ObservableTest {
 
     @Test
     public void testTotalSalaries() {
-
         Maybe<Integer> result = Observable
             .just(jkRowling, georgeLucas)
             .flatMap(manager -> Observable.fromIterable(manager.getEmployees()))
@@ -205,14 +209,247 @@ public class ObservableTest {
         //What I want is an Observable<Integer> reps 100/x
 
         Observable<Integer> observable =
-            Observable.just(10, 40, 0, 20, 5)
-                      .flatMap(x -> {
-                          try {
-                              return Observable.just(100 / x);
-                          } catch (ArithmeticException e) {
-                              return Observable.empty();
-                          }
-                      });
+            Observable
+                .just(10, 40, 0, 20, 5)
+                .flatMap(x -> {
+                    try {
+                        return Observable.just(100 / x);
+                    } catch (ArithmeticException e) {
+                        return Observable.empty();
+                    }
+                });
         observable.subscribe(System.out::println);
     }
+
+    @Test
+    public void testDefer() throws InterruptedException {
+        debug(LocalDateTime.now(), "Before Observable Creation");
+        Observable<LocalDateTime> observable = Observable.defer(() -> {
+            LocalDateTime ldt = LocalDateTime.now();
+            return Observable.just(ldt, ldt.plusSeconds(3));
+        });
+        debug(LocalDateTime.now(), "After Observable Creation");
+        Thread.sleep(4000);
+
+        observable.subscribe(System.out::println);
+    }
+
+    @Test
+    public void testObservableWithDelay() throws InterruptedException {
+        debug(LocalDateTime.now(), "Before Observable Creation");
+        Observable<LocalDateTime> timeObservable =
+            Observable.defer(() -> Observable.just(1).delay(4,
+                TimeUnit.SECONDS).map(x -> LocalDateTime.now()));
+        debug(LocalDateTime.now(), "After Observable Creation");
+        timeObservable.subscribe(System.out::println);
+        Thread.sleep(6000);
+    }
+
+    @Test
+    public void testRange() {
+        Observable.range(10, 20).subscribe(System.out::println);
+    }
+
+    @Test
+    public void testGroupBy() {
+        Observable<GroupedObservable<String, Integer>> groupedObservable =
+            Observable.range(0, 51)
+                      .groupBy(integer -> integer % 2 == 0 ? "Even" : "Odd");
+
+        groupedObservable.subscribe(group -> {
+            String key = group.getKey();
+            group.subscribe(i -> System.out.printf("%s: %d\n", key, i));
+        });
+
+    }
+
+    @Test
+    public void testGroupWithFlatMapAndMap() {
+        Observable<GroupedObservable<String, Integer>> groupedObservable =
+            Observable.range(0, 51)
+                      .groupBy(integer -> integer % 2 == 0 ? "Even" : "Odd");
+        Observable<String> integerObservable =
+            groupedObservable.flatMap(g ->
+                g.map(i -> String.format("%s: %d", g.getKey(), i)));
+        integerObservable.subscribe(System.out::println);
+    }
+
+    @Test
+    public void testMergeWithTwoObservableSameThreadSameAsConcat() {
+        Observable<Integer> o1 = Observable.range(0, 10);
+        Observable<Integer> o2 = Observable.range(10, 10);
+
+        //Observable<Integer> integerObservable = o1.mergeWith(o2);
+        Observable<Integer> merge = Observable.merge(o1, o2);
+
+        merge.subscribe(System.out::println);  //concat
+    }
+
+    @Test
+    public void testMergeWithTwoObservableButOnDifferentThreads() throws InterruptedException {
+        Observable<String> o1 = Observable.interval(1, TimeUnit.SECONDS)
+                                          .map(i -> "S1:" + i);
+        Observable<String> o2 = Observable.interval(1, TimeUnit.SECONDS)
+                                          .map(i -> "S2:" + i)
+                                          .delay(1, TimeUnit.SECONDS);
+
+        CountDownLatch countDownLatch = new CountDownLatch(1); //synchronizer
+        Observable.merge(o1, o2).take(10).subscribe(
+            System.out::println,
+            Throwable::printStackTrace,
+            countDownLatch::countDown
+        );
+
+        countDownLatch.await(); //Thread wait until count down latch is at 0;
+    }
+
+    @Test
+    public void testConcatWithTwoObservableButOnDifferentThreads() throws InterruptedException {
+        Observable<String> o1 = Observable.interval(1, TimeUnit.SECONDS)
+                                          .map(i -> "S1:" + i)
+                                          .take(10);
+        Observable<String> o2 = Observable.interval(1, TimeUnit.SECONDS)
+                                          .map(i -> "S2:" + i)
+                                          .delay(1, TimeUnit.SECONDS);
+        CountDownLatch countDownLatch = new CountDownLatch(1); //synchronizer
+        Observable.concat(o1, o2).take(100).subscribe(
+            System.out::println,
+            Throwable::printStackTrace,
+            countDownLatch::countDown
+        );
+
+        countDownLatch.await(); //Thread wait until count down latch is at 0;
+    }
+
+    @Test
+    public void testTwoObservablesUsingAmb() throws InterruptedException {
+        Observable<Integer> o1 =
+            Observable.range(1, 10)
+                      .delay(7, TimeUnit.SECONDS);
+        Observable<Integer> o2 =
+            Observable.range(10, 10)
+                      .delay(5, TimeUnit.SECONDS);
+        Observable<Integer> o3 =
+            Observable.range(20, 10)
+                      .delay(3, TimeUnit.SECONDS);
+
+        CountDownLatch countDownLatch = new CountDownLatch(1);
+        Observable.amb(Arrays.asList(o1, o2, o3))
+                  .subscribe(System.out::println, Throwable::printStackTrace,
+                      countDownLatch::countDown);
+        countDownLatch.await();
+    }
+
+    @Test
+    public void testZip() {
+        Observable<String> groceries = Observable.just("Almonds",
+            "Eggs", "Asparagus", "Naan", "Yogurt", "Apples", "Lettuce",
+            "Limes").sorted();
+
+        Observable<String> zippedObservable = Observable.zip(groceries,
+            Observable.range(1
+                , 1000), (s, i) -> String.format("%d. %s", i, s));
+
+        zippedObservable.subscribe(System.out::println,
+            Throwable::printStackTrace, () -> System.out.println("Done"));
+    }
+
+    @Test
+    public void testZipWithTestObserver() {
+        Observable<String> groceries = Observable.just("Almonds",
+            "Eggs", "Asparagus", "Naan", "Yogurt", "Apples", "Lettuce",
+            "Limes").sorted();
+
+        Observable<String> zippedObservable = Observable.zip(groceries,
+            Observable.range(1, 1000), (s, i) -> String.format("%d. %s", i, s));
+
+        TestObserver<String> stringTestObserver = zippedObservable.test();
+        stringTestObserver.assertValueAt(0, s -> s.equals("1. Almonds"));
+        stringTestObserver.assertValueAt(5, s -> s.equals("6. Limes"));
+        stringTestObserver.assertValueAt(7, s -> s.equals("8. Yogurt"));
+    }
+
+    @Test
+    public void testZipWithTestScheduler() {
+        TestScheduler testScheduler = new TestScheduler();
+        Observable<String> groceries = Observable.just("Almonds",
+            "Eggs", "Asparagus", "Naan", "Yogurt", "Apples", "Lettuce",
+            "Limes").sorted();
+
+        Observable<Long> range = Observable.interval(1, TimeUnit.SECONDS,
+            testScheduler).map(x -> x + 1);
+
+        Observable<String> resultObservable = groceries.zipWith(range,
+            (s, i) -> String.format("%d. %s", i, s));
+
+        TestObserver<String> testObserver = new TestObserver<>();
+        resultObservable.subscribe(testObserver);
+
+        //Let the games begin
+
+        testScheduler.advanceTimeBy(2, TimeUnit.SECONDS);//I am controlling
+        // the clock
+        testObserver.assertValuesOnly("1. Almonds", "2. Apples");
+
+        testScheduler.advanceTimeBy(1, TimeUnit.SECONDS);//I am controlling
+        // the clock
+        testObserver.assertValuesOnly("1. Almonds", "2. Apples", "3. " +
+            "Asparagus");
+    }
+
+    @Test
+    public void testReduceWithoutASeed() {
+        Maybe<Integer> factorial =
+            Observable.range(1, 5)
+                      .reduce((integer, integer2) -> integer * integer2);
+        factorial.subscribe(System.out::println);
+    }
+
+    @Test
+    public void testReduceWithoutASeedOnEmptyObservable() {
+        Maybe<Integer> factorial =
+            Observable.<Integer>empty()
+                .reduce((integer, integer2) -> integer * integer2);
+        factorial.subscribe(System.out::println, Throwable::printStackTrace,
+            () -> System.out.println("Done"));
+    }
+
+    @Test
+    public void testReduceWithASeed() {
+        Single<Integer> factorial =
+            Observable.range(1, 5)
+                      .reduce(1,
+                          (integer, integer2) -> integer * integer2);
+        factorial.subscribe(System.out::println);
+    }
+
+    @Test
+    public void testReduceWithASeedSupplier() {
+        Single<Integer> factorial =
+            Observable.range(1, 5)
+                      .reduceWith(() -> 1,
+                          (integer, integer2) -> integer * integer2);
+        factorial.subscribe(System.out::println);
+    }
+
+    @Test
+    public void testCollect() {
+        Single<ArrayList<Integer>> listSingle =
+            Observable.range(1, 10).collect(ArrayList::new, ArrayList::add);
+        listSingle.subscribe(System.out::println);
+    }
+
+    @Test
+    public void testLouieArmstrongTest() {
+        List<String> strings =
+            Arrays.asList("I see trees of green",
+                "Red roses too", "I see them bloom",
+                "For me and you", "and I think to myself",
+                "What a wonderful world");
+
+        //"s: 2", "f: 1";
+        Observable
+            .fromIterable(strings);
+    }
 }
+
