@@ -166,8 +166,10 @@ public class ObservableTest {
         Thread.sleep(10000);
     }
 
+    //Perhaps a lab with defer where we use process lines of data and use defer to get the timestamp!
 
-    //Cover Single, and Concat
+
+    //Cover Single, and Concat, and Reduce
 
     //Lab, Just get the salaries of the employee
     @Test
@@ -409,6 +411,7 @@ public class ObservableTest {
         collect.subscribe(System.out::println);
     }
 
+    //Lab:
     @Test
     public void testGroupBy() throws InterruptedException {
         List<String> strings =
