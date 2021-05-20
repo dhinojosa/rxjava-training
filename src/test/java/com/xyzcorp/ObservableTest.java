@@ -200,11 +200,13 @@ public class ObservableTest {
 
     @Test
     public void testDefer() {
-        Observable<LocalDateTime> defer =
-            Observable.defer(() -> Observable.just(LocalDateTime.now()));
+        String label = "Hello!";
 
-        //The above has already been evaluated!
-        System.out.println(">>>" + LocalDateTime.now());
+        //Closure
+
+        Observable<String> defer =
+            Observable.defer(() -> Observable.just(label + LocalDateTime.now()));
+
         defer.repeat(10).subscribe(System.out::println);
     }
 }
