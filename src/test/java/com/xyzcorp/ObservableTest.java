@@ -167,7 +167,9 @@ public class ObservableTest {
     }
 
 
-    //Lab
+    //Cover Single, and Concat
+
+    //Lab, Just get the salaries of the employee
     @Test
     public void testFlatMap2() {
         List<Employee> jkRowlingsEmployees =
