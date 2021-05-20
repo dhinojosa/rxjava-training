@@ -98,6 +98,7 @@ public class ObservableTest {
             .subscribe(x2 -> debug("2", x2));
     }
 
+
     @Test
     public void testFutureToObservable() {
         ExecutorService executorService = Executors.newFixedThreadPool(4);
@@ -135,6 +136,8 @@ public class ObservableTest {
         Thread.sleep(1000);
     }
 
+    //Lab: Same as above except after map filter a fork where evens go to one subscriber, and odds go to another.
+
     @Test
     public void testForkingWithMapAndFilter() throws InterruptedException {
         Observable<Long> interval = Observable
@@ -164,6 +167,7 @@ public class ObservableTest {
     }
 
 
+    //Lab
     @Test
     public void testFlatMap2() {
         List<Employee> jkRowlingsEmployees =
