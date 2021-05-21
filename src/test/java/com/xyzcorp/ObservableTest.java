@@ -9,6 +9,7 @@ import org.junit.Test;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Random;
 import java.util.concurrent.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -109,6 +110,31 @@ public class ObservableTest {
     }
 
     @Test
+    public void testSimpleFlatMap() {
+        Observable
+            .just(40, 10, 9)
+            .flatMap(x -> Observable.just(-x, x, x * 10))
+            .subscribe(System.out::println);
+    }
+
+    public Observable<Integer> getTemperatureFromCity(String city) {
+        //WebService
+        Random random = new Random();
+        return Observable.just(random.nextInt(80));
+    }
+
+
+    //stream.map.filter.foreach(20 -> infinity line)
+    @Test
+    public void testGetTemperatureAtLocation() {
+        Observable
+            .just("Los Gatos, CA", "Las Vegas, NV", "Denver, CO", "Sioux City, IA")
+            .flatMap(city -> getTemperatureFromCity(city).map(t -> Pair.of(city, t)))
+            .map(o -> String.format("city: %s\ttemp:%d\n", o.getA(),
+                    o.getB())).subscribe(System.out::println);
+    }
+
+    @Test
     public void testMapChangeType() {
         Observable
             .just("New Jersey", "Minnesota", "California")
@@ -159,11 +185,15 @@ public class ObservableTest {
                 .map(i -> "Odd:" + i)
                 .doOnNext(x -> log("s2", x));
 
-        Observable<String> mergedObservable =
-            evenObservable
-                .mergeWith(oddObservable); //maybe here?
 
-        //Lab Tomorrow: Put a timestamp on the results e.g Odd:27 {2021-05-21T09:13:24}
+        Observable<String> mergedObservable = evenObservable
+            .mergeWith(oddObservable)
+            .flatMap(s -> Observable.defer(() -> Observable.just(String.format(
+                "%s {%s}", s, LocalDateTime.now()))));
+
+        // s = Odd: 3 {TimeStamp}, Even: 4
+        //Lab Tomorrow: Put a timestamp on the results e.g Odd:27
+        // {2021-05-21T09:13:24}
 
         mergedObservable.subscribe(x -> log("final", x),
             Throwable::printStackTrace,
@@ -219,7 +249,7 @@ public class ObservableTest {
 
     @Test
     public void testStream() {
-        Stream.of(1,2,3,4,5,7,10)
+        Stream.of(1, 2, 3, 4, 5, 7, 10)
               .map(x -> x * 5)
               .filter(x -> x % 2 == 0)
               .collect(Collectors.toList());
