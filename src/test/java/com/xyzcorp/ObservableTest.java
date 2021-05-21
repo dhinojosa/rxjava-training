@@ -1,9 +1,12 @@
 package com.xyzcorp;
 
 import io.reactivex.rxjava3.annotations.NonNull;
+import io.reactivex.rxjava3.core.Maybe;
 import io.reactivex.rxjava3.core.Observable;
 import io.reactivex.rxjava3.core.Observer;
+import io.reactivex.rxjava3.core.Single;
 import io.reactivex.rxjava3.disposables.Disposable;
+import io.reactivex.rxjava3.functions.BiFunction;
 import org.junit.Test;
 
 import java.time.LocalDateTime;
@@ -126,13 +129,29 @@ public class ObservableTest {
 
     //stream.map.filter.foreach(20 -> infinity line)
     @Test
-    public void testGetTemperatureAtLocation() {
+    public void testGetTemperatureAtLocationWithPair() {
         Observable
-            .just("Los Gatos, CA", "Las Vegas, NV", "Denver, CO", "Sioux City, IA")
+            .just("Los Gatos, CA", "Las Vegas, NV", "Denver, CO", "Sioux " +
+                "City, IA")
             .flatMap(city -> getTemperatureFromCity(city).map(t -> Pair.of(city, t)))
             .map(o -> String.format("city: %s\ttemp:%d\n", o.getA(),
-                    o.getB())).subscribe(System.out::println);
+                o.getB())).subscribe(System.out::println);
     }
+
+    // Works only on JDK 11
+    /*
+    @Test
+    public void testGetTemperatureAtLocationWithNonDenotableType() {
+        Observable
+            .just("Los Gatos, CA", "Las Vegas, NV",
+                "Denver, CO", "Sioux City, IA")
+            .flatMap(c -> getTemperatureFromCity(c).map(t -> new Object() {
+                final String city = c;
+                final int temp = t;
+            }))
+            .map(o -> String.format("city: %s\ttemp:%d\n", o.city, o.temp))
+            .subscribe(System.out::println);
+    }*/
 
     @Test
     public void testMapChangeType() {
@@ -257,6 +276,41 @@ public class ObservableTest {
     }
 
     @Test
+    public void testSingle() {
+        Single<Integer> single = Single.just(40);
+        single.subscribe(System.out::println);
+    }
+
+    @Test
+    public void testReduceWithMaybe() {
+        Maybe<Integer> integerMaybe = Observable.range(1, 9).reduce(Integer::sum);
+        integerMaybe.subscribe(System.out::println, Throwable::printStackTrace, () -> System.out.println("Done"));
+
+        System.out.println("---");
+        Maybe<Integer> integerMaybe2 = Observable.<Integer>empty().reduce(Integer::sum);
+        integerMaybe2.subscribe(System.out::println, Throwable::printStackTrace, () -> System.out.println("Done"));
+    }
+
+    @Test
+    public void testReduceWithSingle() {
+        Single<Integer> integerMaybe = Observable.range(1, 9).reduce(0, Integer::sum);
+        integerMaybe.subscribe(System.out::println, Throwable::printStackTrace);
+
+        System.out.println("---");
+
+        Single<Integer> integerMaybe2 = Observable.<Integer>empty().reduce(0, Integer::sum);
+        integerMaybe2.subscribe(System.out::println, Throwable::printStackTrace);
+    }
+
+    @Test
+    public void testConcat() {
+        Observable<String> o1 = Observable.just("A", "B", "C");
+        Observable<String> o2 = Observable.just("a", "b", "c");
+        Observable<String> result = o1.concatWith(o2);
+        result.subscribe(System.out::println, Throwable::printStackTrace, () -> System.out.println("Done"));
+    }
+
+    @Test
     public void testLabFlatMap2() {
         List<Employee> jkRowlingsEmployees =
             Arrays.asList(
@@ -280,5 +334,8 @@ public class ObservableTest {
 
 
         Observable<Manager> startHere = Observable.just(georgeLucas, jkRowling);
+        //Challenge: Get me the total salary of all the employees
+        //Bonus: Get me the total salary of all employees AND managers.
+
     }
 }
