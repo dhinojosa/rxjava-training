@@ -6,9 +6,12 @@ import io.reactivex.rxjava3.core.Observable;
 import io.reactivex.rxjava3.core.Observer;
 import io.reactivex.rxjava3.core.Single;
 import io.reactivex.rxjava3.disposables.Disposable;
+import io.reactivex.rxjava3.observers.TestObserver;
+import io.reactivex.rxjava3.schedulers.TestScheduler;
 import org.junit.Test;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
@@ -378,5 +381,107 @@ public class ObservableTest {
     private Single<String> reduceGroupToString(io.reactivex.rxjava3.observables.GroupedObservable<Character, String> group) {
         return group.reduce(group.getKey() + ": ", (str, next) -> str +
             "," + next);
+    }
+
+    @Test
+    public void testAmb() throws InterruptedException {
+        Observable<Integer> o1 = Observable.range(1, 10).delay(1,
+            TimeUnit.SECONDS);
+        Observable<Integer> o2 = Observable.range(10, 10).delay(2,
+            TimeUnit.SECONDS);
+        Observable<Integer> o3 = Observable.range(20, 10).delay(500,
+            TimeUnit.MILLISECONDS);
+
+        Observable.amb(Arrays.asList(o1, o2, o3)).subscribe(i -> log("Out", i));
+        Thread.sleep(5000);
+    }
+
+    @Test
+    public void testZip() {
+        Observable<String> groceriesObservable = Observable.fromIterable(
+            Arrays.asList("Broccoli", "Asparagus", "Naan", "Eggs",
+                "Pineapple", "Zucchini", "Banana"));
+
+        Observable<Pair<Integer, String>> stringObservable =
+            groceriesObservable.zipWith(Observable.range(1, 10000),
+                (s, integer) -> Pair.of(integer, s));
+
+        TestObserver<Pair<Integer, String>> testObserver = new TestObserver<>();
+        stringObservable.subscribe(testObserver);
+
+        testObserver.assertNoErrors();
+        System.out.println(testObserver.values());
+    }
+
+    @Test
+    public void testZipWithInterval() {
+        Observable<String> groceriesObservable = Observable.fromIterable(
+            Arrays.asList("Broccoli", "Asparagus", "Naan", "Eggs",
+                "Pineapple", "Zucchini", "Banana"));
+
+        TestScheduler testScheduler = new TestScheduler();
+        Observable<Long> interval =
+            Observable.interval(1, TimeUnit.SECONDS, testScheduler)
+                      .map(i -> i + 1);
+
+        Observable<Pair<Long, String>> stringObservable =
+            groceriesObservable.zipWith(interval,
+                (s, integer) -> Pair.of(integer, s));
+
+        TestObserver<Pair<Long, String>> testObserver = new TestObserver<>();
+        stringObservable.subscribe(testObserver);
+
+        testScheduler.advanceTimeBy(1, TimeUnit.SECONDS);
+        testObserver.assertNoErrors();
+        testObserver.assertValues(Pair.of(1L, "Broccoli"));
+
+        testScheduler.advanceTimeBy(1, TimeUnit.SECONDS);
+        testObserver.assertNoErrors();
+        testObserver.assertValues(Pair.of(1L, "Broccoli"), Pair.of(2L,
+            "Asparagus"));
+
+    }
+
+    @Test
+    public void testCollect() {
+        Single<ArrayList<Integer>> result =
+            Observable
+                .just(1, 10, 19, 40)
+                .collect(ArrayList::new, ArrayList::add);
+        result.subscribe(System.out::println);
+    }
+
+    // doOn - debugs, prints to screen
+    // on??? - changes behavior downstream
+    @Test
+    public void testDoError() {
+        Observable.just(100, 4, 2, 0, 5, 10, 20)
+                  .map(i -> 100 / i)
+                  .doOnError(throwable -> System.out.println("error " +
+                      "happened:" + throwable.getMessage())) //tapping into
+                  // the obs for debugging
+                  .doOnNext(x -> log("N1", x))
+                  .onErrorResumeNext(throwable -> Observable.just(-1, 40))
+                  .subscribe(System.out::println,
+                      Throwable::printStackTrace,
+                      () -> System.out.println("Done"));
+        System.out.println("everything is done, no crash");
+    }
+
+    @Test
+    public void testContinueOnError() {
+        Observable.just(100, 4, 2, 0, 5, 10, 20)
+                  .flatMap(i -> {
+                      try {
+                          return Observable.just(100 / i);
+                      } catch (ArithmeticException ae) {
+                          return Observable.<Integer>empty();
+                      }
+                  })
+                  .subscribe(System.out::println,
+                      Throwable::printStackTrace,
+                      () -> System.out.println("Done"));
+        System.out.println("everything is done, no crash");
+
     }
 }
