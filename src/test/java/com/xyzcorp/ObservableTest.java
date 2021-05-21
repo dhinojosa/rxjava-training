@@ -14,6 +14,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class ObservableTest {
@@ -209,4 +210,16 @@ public class ObservableTest {
 
         defer.repeat(10).subscribe(System.out::println);
     }
+
+    @Test
+    public void testStream() {
+        Stream.of(1,2,3,4,5,7,10)
+              .map(x -> x * 5)
+              .filter(x -> x % 2 == 0)
+              .collect(Collectors.toList());
+        System.out.println("Done");
+    }
+
+
+    //Observable(1,2,3,0,4,5).map(x => 100/x).sub
 }
