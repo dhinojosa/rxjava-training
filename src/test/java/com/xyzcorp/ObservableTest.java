@@ -2,18 +2,14 @@ package com.xyzcorp;
 
 import io.reactivex.rxjava3.annotations.NonNull;
 import io.reactivex.rxjava3.core.Observable;
-import io.reactivex.rxjava3.core.ObservableSource;
 import io.reactivex.rxjava3.core.Observer;
 import io.reactivex.rxjava3.disposables.Disposable;
-import io.reactivex.rxjava3.functions.Supplier;
 import org.junit.Test;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
+import java.util.Arrays;
+import java.util.List;
+import java.util.concurrent.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -143,7 +139,7 @@ public class ObservableTest {
     public void testUseObservableIntervalAndMakeTwoBranches() throws InterruptedException {
         Observable<Long> observableInterval = Observable
             .interval(1L, TimeUnit.SECONDS)
-            .map(x -> x + 1)
+            .map(x -> x + 1) //maybe here?
             .take(30);
 
         CountDownLatch countDownLatch = new CountDownLatch(1);
@@ -165,9 +161,9 @@ public class ObservableTest {
 
         Observable<String> mergedObservable =
             evenObservable
-                .mergeWith(oddObservable);
+                .mergeWith(oddObservable); //maybe here?
 
-        //Lab Tomorrow: Put a timestamp on the results e.g Odd:27 {2021-05-21T09:13:24}}
+        //Lab Tomorrow: Put a timestamp on the results e.g Odd:27 {2021-05-21T09:13:24}
 
         mergedObservable.subscribe(x -> log("final", x),
             Throwable::printStackTrace,
@@ -201,14 +197,24 @@ public class ObservableTest {
 
     @Test
     public void testDefer() {
-        String label = "Hello!";
+        Observable<String> defer1 = createDeferWithLabel("Hello!");
+        Observable<String> defer2 = createDeferWithLabel("World!");
+        defer1.mergeWith(defer2).subscribe(System.out::println);
+    }
 
-        //Closure
+    private Observable<String> createDeferWithLabel(String label) {
+        return Observable.defer(() -> Observable.just(label + LocalDateTime.now()));
+    }
 
-        Observable<String> defer =
-            Observable.defer(() -> Observable.just(label + LocalDateTime.now()));
+    @Test
+    public void testParameterizationWithFuture() {
+        Future<Integer> future1 = add10Async(4);
+        Future<Integer> future2 = add10Async(5);
+    }
 
-        defer.repeat(10).subscribe(System.out::println);
+    private Future<Integer> add10Async(int x) {
+        ExecutorService executorService = Executors.newFixedThreadPool(3);
+        return executorService.submit(() -> x + 10);
     }
 
     @Test
@@ -220,6 +226,29 @@ public class ObservableTest {
         System.out.println("Done");
     }
 
+    @Test
+    public void testLabFlatMap2() {
+        List<Employee> jkRowlingsEmployees =
+            Arrays.asList(
+                new Employee("Harry", "Potter", 30000),
+                new Employee("Hermione", "Granger", 32000),
+                new Employee("Ron", "Weasley", 32000),
+                new Employee("Albus", "Dumbledore", 40000));
 
-    //Observable(1,2,3,0,4,5).map(x => 100/x).sub
+        Manager jkRowling =
+            new Manager("J.K", "Rowling", 46000, jkRowlingsEmployees);
+
+        List<Employee> georgeLucasEmployees =
+            Arrays.asList(
+                new Employee("Luke", "Skywalker", 33000),
+                new Employee("Princess", "Leia", 36000),
+                new Employee("Han", "Solo", 36000),
+                new Employee("Lando", "Calrissian", 41000));
+
+        Manager georgeLucas =
+            new Manager("George", "Lucas", 46000, georgeLucasEmployees);
+
+
+        Observable<Manager> startHere = Observable.just(georgeLucas, jkRowling);
+    }
 }
