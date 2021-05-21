@@ -6,7 +6,6 @@ import io.reactivex.rxjava3.core.Observable;
 import io.reactivex.rxjava3.core.Observer;
 import io.reactivex.rxjava3.core.Single;
 import io.reactivex.rxjava3.disposables.Disposable;
-import io.reactivex.rxjava3.functions.BiFunction;
 import org.junit.Test;
 
 import java.time.LocalDateTime;
@@ -283,23 +282,30 @@ public class ObservableTest {
 
     @Test
     public void testReduceWithMaybe() {
-        Maybe<Integer> integerMaybe = Observable.range(1, 9).reduce(Integer::sum);
-        integerMaybe.subscribe(System.out::println, Throwable::printStackTrace, () -> System.out.println("Done"));
+        Maybe<Integer> integerMaybe =
+            Observable.range(1, 9).reduce(Integer::sum);
+        integerMaybe.subscribe(System.out::println,
+            Throwable::printStackTrace, () -> System.out.println("Done"));
 
         System.out.println("---");
-        Maybe<Integer> integerMaybe2 = Observable.<Integer>empty().reduce(Integer::sum);
-        integerMaybe2.subscribe(System.out::println, Throwable::printStackTrace, () -> System.out.println("Done"));
+        Maybe<Integer> integerMaybe2 =
+            Observable.<Integer>empty().reduce(Integer::sum);
+        integerMaybe2.subscribe(System.out::println,
+            Throwable::printStackTrace, () -> System.out.println("Done"));
     }
 
     @Test
     public void testReduceWithSingle() {
-        Single<Integer> integerMaybe = Observable.range(1, 9).reduce(0, Integer::sum);
+        Single<Integer> integerMaybe = Observable.range(1, 9).reduce(0,
+            Integer::sum);
         integerMaybe.subscribe(System.out::println, Throwable::printStackTrace);
 
         System.out.println("---");
 
-        Single<Integer> integerMaybe2 = Observable.<Integer>empty().reduce(0, Integer::sum);
-        integerMaybe2.subscribe(System.out::println, Throwable::printStackTrace);
+        Single<Integer> integerMaybe2 = Observable.<Integer>empty().reduce(0,
+            Integer::sum);
+        integerMaybe2.subscribe(System.out::println,
+            Throwable::printStackTrace);
     }
 
     @Test
@@ -307,7 +313,8 @@ public class ObservableTest {
         Observable<String> o1 = Observable.just("A", "B", "C");
         Observable<String> o2 = Observable.just("a", "b", "c");
         Observable<String> result = o1.concatWith(o2);
-        result.subscribe(System.out::println, Throwable::printStackTrace, () -> System.out.println("Done"));
+        result.subscribe(System.out::println, Throwable::printStackTrace,
+            () -> System.out.println("Done"));
     }
 
     @Test
@@ -333,9 +340,43 @@ public class ObservableTest {
             new Manager("George", "Lucas", 46000, georgeLucasEmployees);
 
 
-        Observable<Manager> startHere = Observable.just(georgeLucas, jkRowling);
         //Challenge: Get me the total salary of all the employees
         //Bonus: Get me the total salary of all employees AND managers.
+        Observable
+            .just(georgeLucas, jkRowling)
+            .flatMap(this::combineManagerWithEmployee)
+            .map(Employee::getSalary)
+            .reduce(0, Integer::sum)
+            .subscribe(System.out::println);
+    }
 
+    private Observable<Employee> combineManagerWithEmployee(Manager m) {
+        Observable<Manager> managerObservable = Observable.just(m);
+        Observable<Employee> employeesObservable =
+            Observable.fromIterable(m.getEmployees());
+        return Observable.concat(managerObservable, employeesObservable);
+    }
+
+    @Test
+    public void testGroupBy() {
+        Observable<String> lyricsObservable = Observable.just(
+            "I see trees of green",
+            "Red Roses Too", "I see them bloom",
+            "For me and you", "And I think to myself",
+            "What a wonderful world");
+
+
+        lyricsObservable
+            .flatMap(s1 -> Observable.fromArray(s1.split("\\W+")))
+            .map(String::toLowerCase)
+            .groupBy(s -> s.charAt(0))
+            .map(this::reduceGroupToString)
+            .flatMap(Single::toObservable)
+            .subscribe(System.out::println);
+    }
+
+    private Single<String> reduceGroupToString(io.reactivex.rxjava3.observables.GroupedObservable<Character, String> group) {
+        return group.reduce(group.getKey() + ": ", (str, next) -> str +
+            "," + next);
     }
 }
