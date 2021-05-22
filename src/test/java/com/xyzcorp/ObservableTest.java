@@ -1,14 +1,14 @@
 package com.xyzcorp;
 
 import io.reactivex.rxjava3.annotations.NonNull;
-import io.reactivex.rxjava3.core.Maybe;
-import io.reactivex.rxjava3.core.Observable;
-import io.reactivex.rxjava3.core.Observer;
-import io.reactivex.rxjava3.core.Single;
+import io.reactivex.rxjava3.core.*;
 import io.reactivex.rxjava3.disposables.Disposable;
 import io.reactivex.rxjava3.observers.TestObserver;
+import io.reactivex.rxjava3.schedulers.Schedulers;
 import io.reactivex.rxjava3.schedulers.TestScheduler;
 import org.junit.Test;
+import org.reactivestreams.Subscriber;
+import org.reactivestreams.Subscription;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -475,13 +475,48 @@ public class ObservableTest {
                       try {
                           return Observable.just(100 / i);
                       } catch (ArithmeticException ae) {
-                          return Observable.<Integer>empty();
+                          return Observable.empty();
                       }
                   })
                   .subscribe(System.out::println,
                       Throwable::printStackTrace,
                       () -> System.out.println("Done"));
         System.out.println("everything is done, no crash");
+    }
 
+    @Test
+    public void testObserveOnAndSubscribeOn() {
+        ExecutorService executorService = Executors.newFixedThreadPool(2);
+        Observable
+            .just(10, 40, 60, 20, 40)
+            .subscribeOn(Schedulers.from(executorService)) //io
+            .observeOn(Schedulers.computation())
+            .doOnNext(i -> log("S1", i))
+            .map(x -> multiplyBy35(x))
+            //from here on out we are on computation
+            .doOnNext(i -> log("S2", i))
+            .filter(x -> x % 2 == 0)
+            .doOnNext(i -> log("S3", i))
+            .observeOn(Schedulers.io())
+            .subscribe(i -> log("Final", i), Throwable::printStackTrace,
+                () -> System.out.println("Done"));
+    }
+
+    private int multiplyBy35(Integer x) {
+        log("In method", x);
+        return x * 35;
+    }
+
+    @Test
+    public void flowable() {
+//        Flowable
+//            .just(10, 50, 90, 100, 120, 40)
+//            .observeOn(Schedulers.computation())
+//            .doOnNext(x -> log("S1", x))
+//            .parallel(3)
+//            .map(x -> x * 2)
+//            .doOnNext(x -> log("S2", x));
+//            .doOnNext(x -> log("S2", x));
+           //
     }
 }
