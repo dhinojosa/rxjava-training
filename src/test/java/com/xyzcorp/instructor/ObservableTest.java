@@ -1,12 +1,15 @@
 package com.xyzcorp.instructor;
 
+import com.xyzcorp.MyPublisher;
 import io.reactivex.rxjava3.annotations.NonNull;
 import io.reactivex.rxjava3.core.Observable;
 import io.reactivex.rxjava3.core.Observer;
 import io.reactivex.rxjava3.disposables.Disposable;
-import io.reactivex.rxjava3.functions.Action;
-import io.reactivex.rxjava3.functions.Consumer;
 import org.junit.Test;
+
+import java.io.PrintStream;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class ObservableTest {
     @Test
@@ -20,6 +23,7 @@ public class ObservableTest {
         //After f, s, t -> on next
         //After f onNext, After s onNext (this is my bet)
         Observable<Long> observable = Observable.create(emitter -> {
+            System.out.println("ready to emit");
             emitter.onNext(10L);
             emitter.onNext(20L);
             emitter.onNext(30L);
@@ -54,5 +58,39 @@ public class ObservableTest {
                 }
             }
         );
+    }
+
+    @Test
+    public void testJust() {
+        Observable<Long> longObservable =
+            Observable.just(10L, 20L, 30L);
+    }
+
+    @Test
+    public void testMyPublisher() throws InterruptedException {
+        ExecutorService executorService = Executors.newFixedThreadPool(2);
+        Observable<Long> longObservable =
+            Observable.fromPublisher(new MyPublisher(executorService));
+
+        Disposable disposable =
+            longObservable.subscribe(System.out::println);
+
+        Thread.sleep(2000);
+        disposable.dispose();
+    }
+
+    @Test
+    public void testRangeAndDebug() {
+        Observable
+            .range(1, 10)
+            .doOnNext(integer -> debug("A", integer))
+            .map(i -> i * 2)
+            .doOnNext(integer -> debug("B", integer))
+            .subscribe(System.out::println);
+    }
+
+    private <A> void debug(String marker, A a) {
+        System.out.printf("%s [%s]: %s\n", marker,
+            Thread.currentThread(), a);
     }
 }
