@@ -7,7 +7,6 @@ import io.reactivex.rxjava3.core.Observer;
 import io.reactivex.rxjava3.disposables.Disposable;
 import org.junit.Test;
 
-import java.io.PrintStream;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -79,13 +78,14 @@ public class ObservableTest {
         disposable.dispose();
     }
 
+
     @Test
     public void testRangeAndDebug() {
         Observable
             .range(1, 10)
-            .doOnNext(integer -> debug("A", integer))
+            .doOnNext(integer -> ObservableTest.this.debug("A", integer))
             .map(i -> i * 2)
-            .doOnNext(integer -> debug("B", integer))
+            .doOnEach(new GenericObserver<>("B"))
             .subscribe(System.out::println);
     }
 
