@@ -1,16 +1,28 @@
 package com.xyzcorp.instructor;
 
 import com.xyzcorp.MyPublisher;
+import com.xyzcorp.Pair;
 import io.reactivex.rxjava3.annotations.NonNull;
+import io.reactivex.rxjava3.core.Maybe;
 import io.reactivex.rxjava3.core.Observable;
 import io.reactivex.rxjava3.core.Observer;
+import io.reactivex.rxjava3.core.Single;
 import io.reactivex.rxjava3.disposables.Disposable;
+import io.reactivex.rxjava3.functions.BiConsumer;
+import io.reactivex.rxjava3.functions.BiFunction;
 import org.junit.Test;
 
+import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 public class ObservableTest {
+
+    ExecutorService executorService = Executors.newFixedThreadPool(2);
+
     @Test
     public void testBasicObservable() {
 
@@ -93,4 +105,207 @@ public class ObservableTest {
         System.out.printf("%s [%s]: %s\n", marker,
             Thread.currentThread(), a);
     }
+
+    @Test
+    public void testInterval() throws InterruptedException {
+        Observable.interval(1, TimeUnit.SECONDS)
+                  .doOnNext(x -> debug("A", x))
+                  .subscribe(System.out::println);
+        System.out.println(Thread.currentThread()); //[main]
+        Thread.sleep(10000);
+    }
+
+    @Test
+    public void testMap() {
+        Observable
+            .range(1, 10)
+            .map(i -> String.valueOf(i * 3))
+            .subscribe(System.out::println);
+    }
+
+    @Test
+    public void testFilter() {
+        Observable
+            .range(1, 10)
+            .filter(integer -> integer % 3 == 0)
+            .subscribe(System.out::println);
+    }
+
+    //Lab:
+    //1. Create an interval Observable, every 1 second
+    //2. Using the Observable, create two forks:
+    //   a. One fork, map each element by multiplying by 2, and subscribe
+    //   b. One fork, filter each element by keeping all the odd numbers, and
+    //   subscribe
+    //3. Thread.sleep(30000);
+
+
+    @Test
+    public void testIntervalLab() throws InterruptedException {
+        Observable<Long> original = Observable
+            .interval(1, TimeUnit.SECONDS)
+            .doOnNext(x -> debug("Root", x));
+        original
+            .map(x -> x * 2)
+            .doOnNext(x -> debug("A", x))
+            .subscribe(x -> System.out.println("SA:" + x));
+        Observable<Long> oddsObservable =
+            original
+                .filter(x -> x % 2 != 0)
+                .doOnNext(x -> debug("B", x));
+        oddsObservable
+            .subscribe(x -> System.out.println("SB:" + x));
+        oddsObservable
+            .map(x -> x * 3)
+            .doOnNext(x -> debug("C", x))
+            .subscribe(x -> System.out.println("SC:" + x));
+        Thread.sleep(10000);
+    }
+
+    @Test
+    public void testFlatMap() {
+        Observable.range(1, 10)
+                  .flatMap(x -> Observable.just(-x, x, x + 1))
+                  .subscribe(System.out::println);
+    }
+
+
+    public Future<Integer> callWebServiceTemperatureFor(String city) {
+        return executorService.submit(() -> {
+            if (city.endsWith("FL")) return 80;
+            else if (city.endsWith("MT")) return 30;
+            else if (city.endsWith("TX")) return 90;
+            else if (city.endsWith("AZ")) return 110;
+            else if (city.endsWith("CA")) return 95;
+            else if (city.endsWith("WY")) return 80;
+            else return 60;
+        });
+    }
+
+    @Test
+    public void testFlatMapCompositionally() {
+        Observable<String> cities =
+            Observable.just("Naples, FL", "San Diego, CA", "Billings, MT");
+        Observable<String> temperatureObservable =
+            cities.flatMap(city -> Observable.fromFuture(callWebServiceTemperatureFor(city))
+                                             .map(i -> city + ":" + i));
+        temperatureObservable.subscribe(System.out::println);
+    }
+
+
+    //Supplier: () -> Food
+    //Function: x -> y
+    //BiFunction: (x1, x2) -> y
+    //Predicate: x -> (true|false)
+    //Consumer: x -> ()
+
+    @Test
+    public void testDefer() throws InterruptedException {
+        Observable<LocalDateTime> deferred =
+            Observable.defer(() -> Observable.just(LocalDateTime.now()));
+
+        Disposable disposable =
+            Observable
+                .interval(1, TimeUnit.SECONDS)
+                .flatMap(x -> Observable.just(LocalDateTime.now()))
+                .subscribe(System.out::println);
+
+        Thread.sleep(40000);
+    }
+
+    @Test
+    public void testConcatV1() {
+        Observable<Integer> range1 = Observable.range(1, 10);
+        Observable<Integer> range2 = Observable.range(100, 100);//Wrong
+
+        Observable<Integer> jointObservable = range1.concatWith(range2);
+        jointObservable.subscribe(System.out::println);
+    }
+
+    @Test
+    public void testConcatV2() {
+        Observable<Integer> range1 = Observable.range(1, 10);
+        Observable<Integer> range2 = Observable.range(100, 100);
+
+        Observable<Integer> jointObservable = Observable.concat(range1, range2);
+        jointObservable.subscribe(System.out::println);
+    }
+
+    @Test
+    public void testMergeSynchronously() {
+        Observable<Integer> range1 = Observable.range(1, 10);
+        Observable<Integer> range2 = Observable.range(100, 100);
+
+        Observable<Integer> jointObservable = Observable.merge(range1, range2);
+        jointObservable.subscribe(System.out::println);
+    }
+
+
+    @Test
+    public void testMergeAsynchronously() throws InterruptedException {
+        Observable<String> range1 =
+            Observable.interval(1, TimeUnit.SECONDS).map(i -> "A" + i);
+        Observable<String> range2 =
+            Observable.interval(2, TimeUnit.SECONDS).map(i -> "B" + i);
+
+        Observable<String> jointObservable = Observable.merge(range1, range2);
+        jointObservable.subscribe(System.out::println);
+
+        Thread.sleep(10000);
+    }
+
+    @Test
+    public void testZip() {
+        Observable<Integer> observable1 = Observable.range(1, 100);
+        Observable<Character> observable2 = Observable.just('a', 'b', 'c', 'd');
+
+        Disposable disposable =
+            observable1.zipWith(observable2, Pair::new)
+                       .subscribe(p -> System.out.println(p.getA() + "-" + p.getB()));
+
+//        JDK 10+
+//        observable1.zipWith(observable2, (integer, character) -> new Object() {
+//                Integer left = integer;
+//                Character right = character;
+//            }).map(o -> o.left + "-" + o.right)
+//                   .subscribe(System.out::println);
+    }
+
+    @Test
+    public void testReduceToSingle() {
+        Single<Integer> integerSingle = Observable.range(1, 5).reduce(0, Integer::sum);
+        integerSingle.subscribe(System.out::println, Throwable::printStackTrace);
+    }
+
+    @Test
+    public void testReduceToMaybe() {
+        Maybe<Integer> integerSingle = Observable.range(1, 5).reduce(Integer::sum);
+        integerSingle.subscribe(System.out::println, Throwable::printStackTrace, () -> System.out.println("Done"));
+    }
+
+
+    @Test
+    public void testReduceToMaybeWithEmptyObservable() {
+        Maybe<Integer> integerSingle = Observable.<Integer>empty().reduce(Integer::sum);
+        integerSingle.subscribe(System.out::println, Throwable::printStackTrace, () -> System.out.println("Done"));
+    }
+
+    @Test
+    public void testCollect() {
+        Single<ArrayList<Integer>> collection =
+            Observable.range(1, 10).collect(ArrayList::new, ArrayList::add);
+
+        collection.subscribe(System.out::println);
+    }
 }
+
+
+
+
+
+
+
+
+
+
+
