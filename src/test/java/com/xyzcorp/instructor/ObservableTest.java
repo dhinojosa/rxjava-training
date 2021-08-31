@@ -330,9 +330,13 @@ public class ObservableTest {
 
         Observable<Manager> managerObservable = Observable.just(georgeLucas, jkRowling);
 
-        Observable<Employee> employeeObservable =
-            managerObservable.flatMap(man -> Observable.concat(Observable.just(man), Observable.fromIterable(man.getEmployees())));
+        Single<Integer> totalSalary = managerObservable.flatMap(man ->
+            Observable.concat(Observable.just(man),
+                Observable.fromIterable(man.getEmployees())))
+                                                  .map(e -> e.getSalary())
+                                                  .reduce(0, (subtotal, salary) -> subtotal + salary);
 
+        totalSalary.subscribe(System.out::println);
     }
 }
 
