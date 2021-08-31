@@ -22,6 +22,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class ObservableTest {
 
@@ -330,14 +332,23 @@ public class ObservableTest {
 
         Observable<Manager> managerObservable = Observable.just(georgeLucas, jkRowling);
 
-        Single<Integer> totalSalary = managerObservable.flatMap(man ->
+        Maybe<Integer> totalSalary = managerObservable.flatMap(man ->
             Observable.concat(Observable.just(man),
                 Observable.fromIterable(man.getEmployees())))
                                                   .map(e -> e.getSalary())
-                                                  .reduce(0, (subtotal, salary) -> subtotal + salary);
+                                                  .reduce((subtotal, salary) -> subtotal + salary);
 
-        totalSalary.subscribe(System.out::println);
+        totalSalary.subscribe(System.out::println, Throwable::printStackTrace, () -> System.out.println("Done"));
     }
+
+    @Test
+    public void testStreams() {
+        List<String> result = Stream.of(1, 2, 3, 4, 5)
+                                     .flatMap(x -> Stream.of(x, x * 100))
+                                     .map(String::valueOf).collect(Collectors.toList());
+    }
+
+
 }
 
 
