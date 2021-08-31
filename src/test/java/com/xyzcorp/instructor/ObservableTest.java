@@ -330,8 +330,8 @@ public class ObservableTest {
 
         Observable<Manager> managerObservable = Observable.just(georgeLucas, jkRowling);
 
-
-
+        Observable<Employee> employeeObservable =
+            managerObservable.flatMap(man -> Observable.concat(Observable.just(man), Observable.fromIterable(man.getEmployees())));
 
     }
 }
