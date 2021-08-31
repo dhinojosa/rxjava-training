@@ -1,5 +1,7 @@
 package com.xyzcorp.instructor;
 
+import com.xyzcorp.Employee;
+import com.xyzcorp.Manager;
 import com.xyzcorp.MyPublisher;
 import com.xyzcorp.Pair;
 import io.reactivex.rxjava3.annotations.NonNull;
@@ -14,6 +16,8 @@ import org.junit.Test;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -296,6 +300,37 @@ public class ObservableTest {
             Observable.range(1, 10).collect(ArrayList::new, ArrayList::add);
 
         collection.subscribe(System.out::println);
+    }
+
+
+    //Challenge. Find me to total salary of _all_ employees,
+    //only using the manager Observable
+    @Test
+    public void testLabEmployees() {
+        List<Employee> jkRowlingsEmployees =
+            Arrays.asList(
+                new Employee("Harry", "Potter", 30000),
+                new Employee("Hermione", "Granger", 32000),
+                new Employee("Ron", "Weasley", 32000),
+                new Employee("Albus", "Dumbledore", 40000));
+
+        Manager jkRowling =
+            new Manager("J.K", "Rowling", 46000, jkRowlingsEmployees);
+
+        List<Employee> georgeLucasEmployees =
+            Arrays.asList(
+                new Employee("Luke", "Skywalker", 33000),
+                new Employee("Princess", "Leia", 36000),
+                new Employee("Han", "Solo", 36000),
+                new Employee("Lando", "Calrissian", 41000));
+
+        Manager georgeLucas =
+            new Manager("George", "Lucas", 46000, georgeLucasEmployees);
+
+
+        Observable<Manager> managerObservable = Observable.just(georgeLucas, jkRowling);
+
+
     }
 }
 
