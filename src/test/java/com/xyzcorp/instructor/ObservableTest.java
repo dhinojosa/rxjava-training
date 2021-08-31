@@ -10,9 +10,10 @@ import io.reactivex.rxjava3.core.Observable;
 import io.reactivex.rxjava3.core.Observer;
 import io.reactivex.rxjava3.core.Single;
 import io.reactivex.rxjava3.disposables.Disposable;
-import io.reactivex.rxjava3.functions.BiConsumer;
-import io.reactivex.rxjava3.functions.BiFunction;
 import io.reactivex.rxjava3.observables.GroupedObservable;
+import io.reactivex.rxjava3.observers.TestObserver;
+import io.reactivex.rxjava3.schedulers.Schedulers;
+import io.reactivex.rxjava3.schedulers.TestScheduler;
 import org.junit.Test;
 
 import java.time.LocalDateTime;
@@ -271,7 +272,8 @@ public class ObservableTest {
                        .subscribe(p -> System.out.println(p.getA() + "-" + p.getB()));
 
 //        JDK 10+
-//        observable1.zipWith(observable2, (integer, character) -> new Object() {
+//        observable1.zipWith(observable2, (integer, character) -> new Object
+//        () {
 //                Integer left = integer;
 //                Character right = character;
 //            }).map(o -> o.left + "-" + o.right)
@@ -280,21 +282,27 @@ public class ObservableTest {
 
     @Test
     public void testReduceToSingle() {
-        Single<Integer> integerSingle = Observable.range(1, 5).reduce(0, Integer::sum);
-        integerSingle.subscribe(System.out::println, Throwable::printStackTrace);
+        Single<Integer> integerSingle = Observable.range(1, 5).reduce(0,
+            Integer::sum);
+        integerSingle.subscribe(System.out::println,
+            Throwable::printStackTrace);
     }
 
     @Test
     public void testReduceToMaybe() {
-        Maybe<Integer> integerSingle = Observable.range(1, 5).reduce(Integer::sum);
-        integerSingle.subscribe(System.out::println, Throwable::printStackTrace, () -> System.out.println("Done"));
+        Maybe<Integer> integerSingle =
+            Observable.range(1, 5).reduce(Integer::sum);
+        integerSingle.subscribe(System.out::println,
+            Throwable::printStackTrace, () -> System.out.println("Done"));
     }
 
 
     @Test
     public void testReduceToMaybeWithEmptyObservable() {
-        Maybe<Integer> integerSingle = Observable.<Integer>empty().reduce(Integer::sum);
-        integerSingle.subscribe(System.out::println, Throwable::printStackTrace, () -> System.out.println("Done"));
+        Maybe<Integer> integerSingle =
+            Observable.<Integer>empty().reduce(Integer::sum);
+        integerSingle.subscribe(System.out::println,
+            Throwable::printStackTrace, () -> System.out.println("Done"));
     }
 
     @Test
@@ -331,22 +339,25 @@ public class ObservableTest {
             new Manager("George", "Lucas", 46000, georgeLucasEmployees);
 
 
-        Observable<Manager> managerObservable = Observable.just(georgeLucas, jkRowling);
+        Observable<Manager> managerObservable = Observable.just(georgeLucas,
+            jkRowling);
 
         Maybe<Integer> totalSalary = managerObservable.flatMap(man ->
             Observable.concat(Observable.just(man),
                 Observable.fromIterable(man.getEmployees())))
-                                                  .map(e -> e.getSalary())
-                                                  .reduce((subtotal, salary) -> subtotal + salary);
+                                                      .map(e -> e.getSalary())
+                                                      .reduce((subtotal,
+                                                               salary) -> subtotal + salary);
 
-        totalSalary.subscribe(System.out::println, Throwable::printStackTrace, () -> System.out.println("Done"));
+        totalSalary.subscribe(System.out::println, Throwable::printStackTrace
+            , () -> System.out.println("Done"));
     }
 
     @Test
     public void testStreams() {
         List<String> result = Stream.of(1, 2, 3, 4, 5)
-                                     .flatMap(x -> Stream.of(x, x * 100))
-                                     .map(String::valueOf).collect(Collectors.toList());
+                                    .flatMap(x -> Stream.of(x, x * 100))
+                                    .map(String::valueOf).collect(Collectors.toList());
     }
 
     @Test
@@ -355,9 +366,66 @@ public class ObservableTest {
             Observable.range(1, 100).groupBy(i -> i % 2 == 0);
 
         groupedObservableObservable
-            .map(go -> go.reduce((go.getKey() ? "Even" : "Odd") + ":", (acc, next) -> acc + next + ","))
-            .flatMap(single -> single.toObservable())
+            .map(go -> go.reduce((go.getKey() ? "Even" : "Odd") + ":", (acc,
+                                                                        next) -> acc + next + ","))
+            .flatMap(Single::toObservable)
             .subscribe(System.out::println);
+    }
+
+    public Observable<Integer> oneHundredDiv(Observable<Integer> integerObservable) {
+        return integerObservable.flatMap(i -> {
+            try {
+                return Observable.just(100 / i);
+            } catch (ArithmeticException e) {
+                return Observable.empty();
+            }
+        });
+    }
+
+
+    @Test
+    public void testPassthrough() {
+        Observable<Integer> result =
+            oneHundredDiv(Observable.just(10, 2, 20, 0, 5, 25));
+        result.subscribe(System.out::println);
+    }
+
+    @Test
+    public void testGroceries() {
+        TestScheduler testScheduler = new TestScheduler(); //fake clock
+        Observable<String> groceries = Observable
+            .just("Lettuce", "Broccoli", "Apple", "Eggs", "Asparagus");
+        Observable<Long> interval = Observable.interval(1, TimeUnit.SECONDS, testScheduler).map(x -> x + 1);
+        Observable<String> stringObservable =
+            groceries.zipWith(interval,
+                (g, i) -> String.format("%d. %s", i, g));
+
+        TestObserver<String> testObserver = new TestObserver<>(); //observer
+        stringObservable.subscribe(testObserver);
+
+        testScheduler.advanceTimeBy(1, TimeUnit.SECONDS);
+        testObserver.assertNoErrors();
+        testObserver.assertValues("1. Lettuce");
+
+        testScheduler.advanceTimeBy(1, TimeUnit.SECONDS);
+        testObserver.assertNoErrors();
+        testObserver.assertValues("1. Lettuce", "2. Broccoli");
+    }
+
+    @Test
+    public void testSchedulers() throws InterruptedException {
+        Observable.just(53, 668, 466, 211, 543)
+                  .doOnNext(x -> debug("A", x))
+                  .observeOn(Schedulers.computation())
+                  .subscribeOn(Schedulers.io())
+                  .doOnNext(x -> debug("B", x))
+                  .map(x -> x * 2)
+                  .observeOn(Schedulers.io())
+                  .doOnNext(x -> debug("C", x))
+                  .subscribe(System.out::println);
+
+        Thread.sleep(10000);
+
     }
 }
 
