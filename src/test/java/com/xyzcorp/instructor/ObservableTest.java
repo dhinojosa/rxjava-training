@@ -331,6 +331,8 @@ public class ObservableTest {
         Observable<Manager> managerObservable = Observable.just(georgeLucas, jkRowling);
 
 
+
+
     }
 }
 
