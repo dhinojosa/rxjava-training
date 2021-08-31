@@ -12,6 +12,7 @@ import io.reactivex.rxjava3.core.Single;
 import io.reactivex.rxjava3.disposables.Disposable;
 import io.reactivex.rxjava3.functions.BiConsumer;
 import io.reactivex.rxjava3.functions.BiFunction;
+import io.reactivex.rxjava3.observables.GroupedObservable;
 import org.junit.Test;
 
 import java.time.LocalDateTime;
@@ -348,7 +349,16 @@ public class ObservableTest {
                                      .map(String::valueOf).collect(Collectors.toList());
     }
 
+    @Test
+    public void testGroupBy() {
+        Observable<GroupedObservable<Boolean, Integer>> groupedObservableObservable =
+            Observable.range(1, 100).groupBy(i -> i % 2 == 0);
 
+        groupedObservableObservable
+            .map(go -> go.reduce((go.getKey() ? "Even" : "Odd") + ":", (acc, next) -> acc + next + ","))
+            .flatMap(single -> single.toObservable())
+            .subscribe(System.out::println);
+    }
 }
 
 
