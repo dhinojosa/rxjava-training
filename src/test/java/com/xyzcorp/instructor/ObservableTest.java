@@ -96,13 +96,13 @@ public class ObservableTest {
     @Test
     public void testDefer() throws InterruptedException {
         Single<LocalDateTime> localDateTimeSingle =
-            Single.just(LocalDateTime.now());
+           Single.defer(() -> Single.just(LocalDateTime.now())); //fresh
 
         localDateTimeSingle.subscribe(ldt -> debug("S1", ldt));
         Thread.sleep(1000);
         localDateTimeSingle.subscribe(ldt -> debug("S2", ldt));
         Thread.sleep(1000);
-        localDateTimeSingle.subscribe(ldt -> debug("S2", ldt));
+        localDateTimeSingle.subscribe(ldt -> debug("S3", ldt));
         Thread.sleep(1000);
     }
 }
