@@ -13,6 +13,7 @@ import io.reactivex.schedulers.TestScheduler;
 import org.junit.Test;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
@@ -146,9 +147,9 @@ public class ObservableTest {
                           return Observable.just(-x, x, x + 1);
                       });
 
-        //mergeMap.toList().subscribe(System.out::println);
+        mergeMap.toList().subscribe(System.out::println);
         System.out.println("-------");
-        concatMap.toList().subscribe(System.out::println);
+        //concatMap.toList().subscribe(System.out::println);
 
         Thread.sleep(30000);
     }
@@ -373,7 +374,57 @@ public class ObservableTest {
         );
     }
 
+    @Test
+    public void testChallengeOfDivBy0() {
+        Observable<Integer> integerObservable = Observable
+            .just(5, 10, 20, 0, 25, 50)
+            .flatMap(x -> {
+                try {
+                    return Observable.just(100 / x);
+                } catch (ArithmeticException ae) {
+                    return Observable.empty();
+                }
+            });
 
+        integerObservable.subscribe(System.out::println);
+
+    }
+
+    @Test
+    public void testAmb() throws InterruptedException {
+        Observable<Integer> o1 = Observable.range(1, 10)
+                                           .delay(5, TimeUnit.SECONDS);
+
+        Observable<Integer> o2 = Observable.range(10, 10)
+                                           .delay(2, TimeUnit.SECONDS);
+
+        Observable<Integer> o3 = Observable.range(20, 10)
+                                           .delay(15, TimeUnit.SECONDS);
+
+        Observable.amb(Arrays.asList(o1, o2, o3)).subscribe(System.out::println);
+
+        Thread.sleep(30000);
+    }
+
+    @Test
+    public void testCollect() {
+        Single<ArrayList<Integer>> collect =
+            Observable.range(0, 10)
+                      .collect(ArrayList::new, ArrayList::add);
+        collect.subscribe(System.out::println);
+    }
+
+    @Test
+    public void testSchedulers() {
+        Observable.just(40, 10, 44, 560, 1000, 2000)
+                  .doOnNext(x -> debug("A0", x))
+                  .observeOn(Schedulers.computation())
+                  .map(x -> x * 4)
+                  .doOnNext(x -> debug("A1", x))
+                  .observeOn(Schedulers.io())
+                  .subscribeOn(Schedulers.newThread())
+                  .subscribe(x -> debug("A10", x));
+    }
 }
 
 
