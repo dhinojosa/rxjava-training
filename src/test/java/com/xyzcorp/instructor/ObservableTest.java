@@ -5,14 +5,17 @@ import com.xyzcorp.Manager;
 import io.reactivex.Maybe;
 import io.reactivex.Observable;
 import io.reactivex.Single;
-import io.reactivex.annotations.NonNull;
-import io.reactivex.functions.BiFunction;
+import io.reactivex.disposables.Disposable;
+import io.reactivex.observables.GroupedObservable;
+import io.reactivex.observers.TestObserver;
 import io.reactivex.schedulers.Schedulers;
+import io.reactivex.schedulers.TestScheduler;
 import org.junit.Test;
 
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Random;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -103,7 +106,7 @@ public class ObservableTest {
     @Test
     public void testDefer() throws InterruptedException {
         Single<LocalDateTime> localDateTimeSingle =
-           Single.defer(() -> Single.just(LocalDateTime.now())); //fresh
+            Single.defer(() -> Single.just(LocalDateTime.now())); //fresh
 
         localDateTimeSingle.subscribe(ldt -> debug("S1", ldt));
         Thread.sleep(1000);
@@ -126,18 +129,28 @@ public class ObservableTest {
 
     @Test
     public void testFlatMap() throws InterruptedException {
+        Random random = new Random();
         Observable<Long> mergeMap =
-            Observable.interval(1, TimeUnit.SECONDS).take(5).flatMap(x -> Observable.just(-x, x, x + 1));
+            Observable.interval(1, TimeUnit.SECONDS)
+                      .take(5)
+                      .flatMap(x -> {
+                          Thread.sleep(random.nextInt(10000));
+                          return Observable.just(-x, x, x + 1);
+                      });
 
         Observable<Long> concatMap =
-            Observable.interval(1, TimeUnit.SECONDS).take(5).concatMap(x -> Observable.just(-x, x,
-                x + 1));
+            Observable.interval(1, TimeUnit.SECONDS)
+                      .take(5)
+                      .flatMap(x -> {
+                          Thread.sleep(random.nextInt(10000));
+                          return Observable.just(-x, x, x + 1);
+                      });
 
-        mergeMap.subscribe();
+        //mergeMap.toList().subscribe(System.out::println);
         System.out.println("-------");
-        concatMap.subscribe(System.out::println);
+        concatMap.toList().subscribe(System.out::println);
 
-        Thread.sleep(10000);
+        Thread.sleep(30000);
     }
 
     @Test
@@ -171,7 +184,8 @@ public class ObservableTest {
         Single<Integer> reduce =
             Observable.range(1, 5)
                       .reduce(1, (subtotal, next) -> {
-                          System.out.printf("subtotal: %d, next: %d\n", subtotal, next);
+                          System.out.printf("subtotal: %d, next: %d\n",
+                              subtotal, next);
                           return subtotal * next;
                       });
         reduce.subscribe(System.out::println, Throwable::printStackTrace);
@@ -182,10 +196,12 @@ public class ObservableTest {
         Maybe<Integer> reduce =
             Observable.<Integer>empty()
                       .reduce((subtotal, next) -> {
-                          System.out.printf("subtotal: %d, next: %d\n", subtotal, next);
+                          System.out.printf("subtotal: %d, next: %d\n",
+                              subtotal, next);
                           return subtotal * next;
                       });
-        reduce.subscribe(System.out::println, Throwable::printStackTrace, () -> System.out.println("Nothing to report"));
+        reduce.subscribe(System.out::println, Throwable::printStackTrace,
+            () -> System.out.println("Nothing to report"));
     }
 
     @Test
@@ -210,10 +226,156 @@ public class ObservableTest {
         Manager georgeLucas =
             new Manager("George", "Lucas", 46000, georgeLucasEmployees);
 
+        //--------------------------------------------------------------------------------------------
+        //JUST USE THIS REFERENCE, managerObservable, to get the total of
+        // salaries
+        Observable<Manager> managerObservable = Observable.just(georgeLucas,
+            jkRowling);
 
-        Observable<Manager> managerObservable = Observable.just(georgeLucas, jkRowling);
+        Observable.just(georgeLucas, jkRowling)
+                  .flatMap(this::getManagerAndEmployeeObservable)
+                  .map(Employee::getSalary)
+                  .reduce(Integer::sum)
+                  .subscribe(x -> System.out.println("Total Salary:" + x));
     }
+
+    private Observable<Employee> getManagerAndEmployeeObservable(Manager man) {
+        return Observable.concat(Single.just(man).toObservable(),
+            Observable.fromIterable(man.getEmployees()));
+    }
+
+
+    @Test
+    public void testSingleWithAFilter() {
+        Maybe<String> stringMaybe =
+            Single.just("Hello").filter(w -> w.length() == 4);
+        stringMaybe.subscribe(System.out::println, Throwable::printStackTrace
+            , () -> System.out.println("Has no value"));
+    }
+
+    @Test
+    public void testMaybeComposedWithTwoSingles() {
+        Maybe<String> stringMaybe = Maybe.empty();
+        Single<Integer> single1 = Single.just(4);
+        Single<Integer> single2 = Single.just(10);
+
+        Maybe<String> stringSingle =
+            stringMaybe.flatMap(s ->
+                single1.toMaybe().flatMap(t ->
+                    single2.toMaybe().map(u -> String.format("%s %d %d", s, t
+                        , u))));
+
+        stringSingle.subscribe(System.out::println,
+            Throwable::printStackTrace, () -> System.out.println("No answer"));
+    }
+
+    @Test
+    public void testGroupBySimple() {
+        Observable<GroupedObservable<String, Integer>> groupBy =
+            Observable.just(1, 2, 3, 4, 5, 6)
+                      .groupBy(integer -> integer % 2 == 0 ? "Even" : "Odd");
+
+        groupBy.subscribe(go -> {
+            go.subscribe(i -> System.out.println(go.getKey() + ":" + i));
+        });
+    }
+
+    @Test
+    public void testGroupBy() throws InterruptedException {
+        List<String> strings =
+            Arrays.asList("I see trees of green",
+                "Red roses too", "I see them bloom",
+                "For me and you", "and I think to myself",
+                "What a wonderful world");
+
+        Disposable disposable = Observable
+            .fromIterable(strings)
+            .flatMap(s1 -> Observable.fromArray(s1.split(" ")))
+            .map(String::toUpperCase)
+            .groupBy(s -> s.substring(0, 1))
+            .map(go -> go.reduce(go.getKey() + ": ",
+                (composite, next) -> composite + next + ","))
+            .flatMap(Single::toObservable)
+            .subscribe(System.out::println);
+
+        Thread.sleep(1000);
+        disposable.dispose();
+    }
+
+    @Test
+    public void testZipSimple() {
+        Observable<Character> characterObservable = Observable.just('a', 'b',
+            'c');
+        Observable<Integer> integerObservable = Observable.just(3, 5, 10);
+
+        Observable<String> stringObservable =
+            characterObservable.zipWith(integerObservable, (character,
+                                                            integer) -> {
+                return new Object() {
+                    char c = character;
+                    int i = integer;
+                };
+            }).map(o -> String.format("%s %d", o.c, o.i));
+
+        stringObservable.subscribe(System.out::println);
+    }
+
+
+    @Test
+    public void testGroceries() {
+        Observable<String> groceries = Observable.just(
+            "Almonds",
+            "Naan",
+            "Eggs",
+            "Broccoli",
+            "Pineapple",
+            "Potatoes");
+
+        groceries.test();
+
+        TestScheduler testScheduler = new TestScheduler();
+        Observable<Long> interval = Observable
+            .interval(1, TimeUnit.SECONDS, testScheduler);
+        Observable<Long> range =
+            interval.map(i -> i + 1);
+
+        Observable<String> stringObservable =
+            groceries
+                .zipWith(range,
+                    (s, integer) -> String.format("%d. %s", integer, s));
+
+        TestObserver<String> testObserver = new TestObserver<>();
+        stringObservable.subscribe(testObserver);
+
+        testScheduler.advanceTimeBy(2, TimeUnit.SECONDS);
+        testObserver.assertNoErrors();
+        testObserver.assertValues(
+            "1. Almonds",
+            "2. Naan");
+
+        testScheduler.advanceTimeBy(2, TimeUnit.SECONDS);
+        testObserver.assertNoErrors();
+        testObserver.assertValues(
+            "1. Almonds",
+            "2. Naan",
+            "3. Eggs",
+            "4. Broccoli");
+
+        testScheduler.advanceTimeBy(2, TimeUnit.SECONDS);
+        testObserver.assertNoErrors();
+        testObserver.assertValues(
+            "1. Almonds",
+            "2. Naan",
+            "3. Eggs",
+            "4. Broccoli",
+            "5. Pineapple",
+            "6. Potatoes"
+        );
+    }
+
+
 }
+
 
 
 
